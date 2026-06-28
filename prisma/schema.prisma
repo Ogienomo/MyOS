@@ -1,0 +1,277 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Auth {
+  id        String   @id @default(cuid())
+  code      String   // The access code
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Settings {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String   // JSON string
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CheckIn {
+  id        String   @id @default(cuid())
+  type      String   // morning, midday, evening, friday, sunday
+  date      String   // YYYY-MM-DD
+  data      String   // JSON string of check-in data
+  aiResponse String? // JSON string of AI response
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model LifeAreaScore {
+  id        String   @id @default(cuid())
+  date      String   // YYYY-MM-DD
+  faith     Int      @default(0)
+  health    Int      @default(0)
+  career    Int      @default(0)
+  havilah   Int      @default(0)
+  finances  Int      @default(0)
+  relationships Int  @default(0)
+  personalGrowth Int @default(0)
+  overall   Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([date])
+}
+
+model FinanceEntry {
+  id        String   @id @default(cuid())
+  date      String   // YYYY-MM-DD
+  type      String   // received, spent
+  amount    Float    @default(0)
+  category  String   // source or spending category
+  purpose   String?  // what it was for
+  aligned   Boolean? // whether the spending was aligned with goals
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Goal {
+  id          String   @id @default(cuid())
+  area        String   // career, financial, personal, health, relationship, ministry, havilah, faith
+  title       String
+  description String?
+  whyItMatters String?
+  successMetric String?
+  targetDate  String?
+  status      String   @default("Not Started") // Not Started, In Progress, Completed, Paused
+  notes       String?
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tasks       Task[]
+}
+
+model Task {
+  id           String   @id @default(cuid())
+  goalId       String
+  goal         Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  title        String
+  dependency   String?
+  difficulty   String?  // Low, Medium, High
+  estimatedCost String?
+  status       String   @default("Not Started") // Not Started, In Progress, Completed, Skipped
+  notes        String?
+  order        Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  role      String   // user, assistant
+  content   String
+  checkInType String? // morning, midday, evening, friday, sunday, general
+  createdAt DateTime @default(now())
+}
+
+model Memory {
+  id        String   @id @default(cuid())
+  type      String   // win, distraction, weakness, strength, correction, decision, pattern
+  area      String   // faith, health, career, havilah, finances, relationships, personalGrowth
+  content   String
+  date      String   // YYYY-MM-DD
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model DriftAlert {
+  id        String   @id @default(cuid())
+  area      String   // faith, health, career, havilah, finances, relationships, personalGrowth
+  severity  String   // warning, critical
+  message   String
+  resolved  Boolean  @default(false)
+  date      String   // YYYY-MM-DD
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model JournalEntry {
+  id        String   @id @default(cuid())
+  area      String   // faith, health, career, havilah, finances, relationships, personalGrowth, general
+  title     String?
+  content   String
+  mood      String?  // great, good, okay, low, struggling
+  tags      String?  // comma-separated tags
+  date      String   // YYYY-MM-DD
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model LifeAreaProgress {
+  id          String   @id @default(cuid())
+  area        String   // faith, health, career, havilah, finances, relationships, personalGrowth
+  currentStatus String? // Where User currently is in this area
+  idealVision String?   // The ideal/2026 vision for this area
+  keyActions  String?   // JSON array of key actions needed
+  blockers    String?   // What's blocking progress
+  motivation  String?   // Why this matters
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
+
+  @@unique([area])
+}
+
+model Streak {
+  id          String   @id @default(cuid())
+  type        String   // morning, evening, checkin, overall
+  currentStreak Int    @default(0)
+  longestStreak Int    @default(0)
+  lastDate    String?  // YYYY-MM-DD of last successful action
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
+
+  @@unique([type])
+}
+
+model QuickLog {
+  id        String   @id @default(cuid())
+  date      String   // YYYY-MM-DD
+  time      String   // HH:mm
+  mood      Int      @default(5)  // 1-10
+  energy    Int      @default(5)  // 1-10
+  focus     Int      @default(5)  // 1-10
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model SavingsGoal {
+  id          String   @id @default(cuid())
+  name        String
+  targetAmount Float
+  savedAmount  Float   @default(0)
+  deadline    String?  // YYYY-MM-DD
+  area        String?  // optional life area linkage
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model NotificationLog {
+  id          String   @id @default(cuid())
+  type        String   // morning_reminder, evening_reminder, drift_alert, streak_celebration
+  sentAt      DateTime @default(now())
+  delivered   Boolean  @default(false)
+  message     String?
+}
+
+model MonthlySummary {
+  id         String   @id @default(cuid())
+  area       String   // faith, health, career, havilah, finances, relationships, personalGrowth
+  month      String   // YYYY-MM format (e.g., "2026-03")
+  summary    String   // The AI-generated summary text (markdown)
+  highlights String?  // Key highlights as JSON array
+  score      Int?     // Overall score for the month (0-10)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([area, month])
+}
+
+model Habit {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  area        String   // faith, health, career, havilah, finances, relationships, personalGrowth, general
+  frequency   String   // daily, weekly, custom
+  customDays  String?  // JSON array of day numbers [1,3,5] for custom frequency (1=Monday)
+  targetPerWeek Int?   // For weekly: how many times per week
+  color       String?  // Optional color hex
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  logs        HabitLog[]
+}
+
+model HabitLog {
+  id        String   @id @default(cuid())
+  habitId   String
+  habit     Habit    @relation(fields: [habitId], references: [id], onDelete: Cascade)
+  date      String   // YYYY-MM-DD
+  completed Boolean  @default(true)
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([habitId, date])
+}
+
+model CustomReminder {
+  id        String   @id @default(cuid())
+  title     String
+  message   String
+  time      String   // HH:mm
+  days      String   // JSON array of day numbers [1,2,3,4,5,6,7] (1=Monday)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CustomMoodTag {
+  id        String   @id @default(cuid())
+  name      String
+  emoji     String?  // Optional emoji
+  color     String?  // Optional hex color
+  pinned    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model WeeklyReviewNote {
+  id            String   @id @default(cuid())
+  weekStart     String   // YYYY-MM-DD (Monday of the week)
+  whatILearned  String?  // "What I Learned" text
+  nextWeekFocus String?  // "Next Week Focus" text
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([weekStart])
+}
+
+model DashboardWidget {
+  id        String   @id @default(cuid())
+  widgetId  String   @unique // e.g., "checkin", "scores", "finances", "goals", "mood", "drift-alerts", "streaks"
+  visible   Boolean  @default(true)
+  order     Int      @default(0)
+  collapsed Boolean  @default(false)
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+}
