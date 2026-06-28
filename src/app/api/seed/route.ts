@@ -34,7 +34,7 @@ function isHavilahGoal(goalTitle: string): boolean {
   return HAVILAH_GOAL_KEYWORDS.some((keyword) => lower.includes(keyword))
 }
 
-// the user's 2026 vision for each area
+// Praise's 2026 vision for each area
 const VISION_DATA: Record<string, { idealVision: string; currentStatus: string; keyActions: string; blockers: string; motivation: string }> = {
   faith: {
     idealVision: 'Grow deeper in relationship with God through consistent prayer, scripture study, devotion, and obedience. Be a woman of faith whose life reflects God\'s glory.',
@@ -61,7 +61,7 @@ const VISION_DATA: Record<string, { idealVision: string; currentStatus: string; 
       'Zero sick days target',
     ]),
     blockers: 'Lack of gym membership, no structured meal plan, inconsistent sleep.',
-    motivation: 'Health is the vehicle for everything God has called the user to do. Energy and vitality enable her to serve and build.',
+    motivation: 'Health is the vehicle for everything God has called Praise to do. Energy and vitality enable her to serve and build.',
   },
   career: {
     idealVision: 'Secure an international corporate role (preferably remote/hybrid) in research/strategy. Build professional portfolio, network strategically, and position for leadership.',
@@ -90,7 +90,7 @@ const VISION_DATA: Record<string, { idealVision: string; currentStatus: string; 
       'Create revenue targets per service',
     ]),
     blockers: 'No dedicated space, limited systems, no website for writers, need business partners.',
-    motivation: 'Havilah is the entrepreneurial expression of the user\'s calling. Building it well creates sustainable income and impact.',
+    motivation: 'Havilah is the entrepreneurial expression of Praise\'s calling. Building it well creates sustainable income and impact.',
   },
   finances: {
     idealVision: 'Become financially disciplined and aware. Track every naira. Build savings. Reduce wasteful spending. Align all spending with goals. Achieve financial stewardship.',
@@ -133,7 +133,7 @@ const VISION_DATA: Record<string, { idealVision: string; currentStatus: string; 
       'Register for a gym in Q1',
     ]),
     blockers: 'Inconsistent routines, competing priorities, need for dedicated workspace.',
-    motivation: 'Growth is non-negotiable. The person the user becomes matters more than what they achieve.',
+    motivation: 'Growth is non-negotiable. The person Praise becomes matters more than what she achieves.',
   },
 }
 
@@ -485,7 +485,7 @@ export async function POST() {
     // 1. Seed initial auth code
     const existingAuth = await db.auth.findFirst()
     if (!existingAuth) {
-      await db.auth.create({ data: { code: 'BUILDPRAISE' } })
+      await db.auth.create({ data: { code: 'BUILDMyOS' } })
     }
 
     // 2. Seed LifeAreaProgress for each area

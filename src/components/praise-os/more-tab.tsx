@@ -14,7 +14,7 @@ import { BackupRestore } from './backup-restore'
 const sections: { id: TabId; label: string; desc: string; icon: React.ReactNode }[] = [
   { id: 'habits', label: 'Habits', desc: 'Track recurring goals & streaks', icon: <Repeat className="h-5 w-5 text-red-500" /> },
   { id: 'moodLog', label: 'Mood Log', desc: 'Track how you feel, energy, focus', icon: <Heart className="h-5 w-5 text-red-500" /> },
-  { id: 'about', label: 'About MyOS', desc: 'Learn about your Life Operating System', icon: <Info className="h-5 w-5 text-red-500" /> },
+  { id: 'about', label: 'About', desc: 'About your Life Operating System', icon: <Info className="h-5 w-5 text-red-500" /> },
   { id: 'insights', label: 'Insights & Patterns', desc: 'Drift detection, memory, patterns', icon: <Lightbulb className="h-5 w-5 text-red-500" /> },
   { id: 'finances', label: 'Finances', desc: 'Track every naira', icon: <Wallet className="h-5 w-5 text-red-500" /> },
   { id: 'calendar', label: 'Calendar & Cadence', desc: 'Your daily rhythm', icon: <Calendar className="h-5 w-5 text-red-500" /> },

@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from 'next/server'
 export const maxDuration = 300
 
 import { db } from '@/lib/db'
-import { callZAIWithRetry, getOpenAIClient, PRAISE_OS_SYSTEM_PROMPT, formatTodaysDate } from '@/lib/ai'
+import { callZAIWithRetry, getOpenAIClient, MYOS_SYSTEM_PROMPT, formatTodaysDate } from '@/lib/ai'
 import { getTodayInTimezone, formatDateInTimezone, getCurrentHourInTimezone, getCurrentTimeStringInTimezone, getCurrentMinutesInTimezone } from '@/lib/utils'
 import { ChatMessageSchema, sanitizeForAI } from '@/lib/validation'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
@@ -155,7 +155,7 @@ function formatContextForAI(ctx: LifeContext): string {
   else if (hours < 17) timeLabel = 'AFTERNOON (execution time — push through)'
   else if (hours < 21) timeLabel = 'EVENING (Evening Review window — account for the day)'
   else if (hours < 23) timeLabel = 'LATE EVENING (reflect + prepare for tomorrow — do NOT say "execute today\'s plan")'
-  else timeLabel = 'NIGHT (the user should be resting — focus on tomorrow, NOT today. Do NOT say "execute today\'s plan")'
+  else timeLabel = 'NIGHT (Praise should be resting — focus on tomorrow, NOT today. Do NOT say "execute today\'s plan")'
   parts.push(`--- CURRENT TIME: ${timeStr} (Africa/Lagos) ---`)
   parts.push(`--- TIME-OF-DAY: ${timeLabel} ---`)
 
@@ -418,7 +418,7 @@ function generateCheckInResponse(type: string, ctx: LifeContext, scoreAnalysis: 
   const parts: string[] = []
   parts.push(`## ${label} Received`)
   parts.push('')
-  parts.push(`${label} logged. Here's where you actually stand. No sugar-coating.`)
+  parts.push(`${label} logged, . Here's where you actually stand. No sugar-coating.`)
   parts.push('')
 
   // Score snapshot
@@ -501,7 +501,7 @@ function generateGreeting(ctx: LifeContext, scoreAnalysis: ReturnType<typeof ana
   const timeGreeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
 
   const parts: string[] = []
-  parts.push(`${timeGreeting}. Let's get to work.`)
+  parts.push(`${timeGreeting}, . Let's get to work.`)
   parts.push('')
 
   // Quick status
@@ -538,7 +538,7 @@ function generateGreeting(ctx: LifeContext, scoreAnalysis: ReturnType<typeof ana
 
 function generateFullCoachingSession(ctx: LifeContext, scoreAnalysis: ReturnType<typeof analyzeScores>): string {
   const parts: string[] = []
-  parts.push("Let me give you the full picture. No sugar-coating.")
+  parts.push("Let me give you the full picture, . No sugar-coating.")
   parts.push('')
 
   // Life scores
@@ -607,7 +607,7 @@ function generateFullCoachingSession(ctx: LifeContext, scoreAnalysis: ReturnType
 
 function generateFinanceResponse(ctx: LifeContext): string {
   const parts: string[] = []
-  parts.push("Let's talk money. Financial stewardship is not optional.")
+  parts.push("Let's talk money, . Financial stewardship is not optional.")
   parts.push('')
 
   parts.push('## Financial Snapshot')
@@ -660,7 +660,7 @@ function generateMoodResponse(ctx: LifeContext, scoreAnalysis: ReturnType<typeof
 
 function generateProgressResponse(ctx: LifeContext, scoreAnalysis: ReturnType<typeof analyzeScores>): string {
   const parts: string[] = []
-  parts.push("Let's look at where you actually are. Not where you wish you were.")
+  parts.push("Let's look at where you actually are, . Not where you wish you were.")
   parts.push('')
 
   if (ctx.recentScores.length > 0) {
@@ -803,7 +803,7 @@ function generateAreaSpecificResponse(area: string, ctx: LifeContext, scoreAnaly
 
 function generateDefaultResponse(ctx: LifeContext, scoreAnalysis: ReturnType<typeof analyzeScores>): string {
   const parts: string[] = []
-  parts.push("Let me give you the full picture of where you stand right now.")
+  parts.push("Let me give you the full picture of where you stand right now, .")
   parts.push('')
 
   // Score
@@ -959,7 +959,7 @@ export async function POST(request: NextRequest) {
     // readonly SQLite in some sandboxes, or a momentary PostgreSQL connection
     // hiccup on Vercel) must NOT block the AI response. We log and continue;
     // the user's message simply won't appear in history, which is far better
-    // than surfacing a hard 500 "Failed to generate response" to you.
+    // than surfacing a hard 500 "Failed to generate response" to the user.
     let userMessage: { id: string } | null = null
     try {
       userMessage = await db.chatMessage.create({
@@ -983,7 +983,7 @@ export async function POST(request: NextRequest) {
       const contextStr = formatContextForAI(ctx)
 
       const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
-        { role: 'system', content: PRAISE_OS_SYSTEM_PROMPT },
+        { role: 'system', content: MYOS_SYSTEM_PROMPT },
       ]
 
       if (contextStr) {

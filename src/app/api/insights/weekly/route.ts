@@ -108,7 +108,7 @@ export async function GET() {
       messages: [
         {
           role: 'system',
-          content: `You are MyOS, generating a concise weekly insight summary for User.
+          content: `You are MyOS, generating a concise weekly insight summary.
 
 Based on the data provided, write a 3-5 sentence weekly insight that covers:
 1. Overall theme of the week

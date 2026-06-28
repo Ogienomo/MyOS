@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getZAI, PRAISE_OS_SYSTEM_PROMPT } from '@/lib/ai'
+import { getZAI, MYOS_SYSTEM_PROMPT } from '@/lib/ai'
 
 const AREA_NAMES: Record<string, string> = {
   faith: 'Faith & Spiritual Life',
@@ -214,12 +214,12 @@ async function generateSummaryForArea(area: string, month: string) {
   const zai = await getZAI()
   const response = await zai.chat.completions.create({
     messages: [
-      { role: 'system', content: PRAISE_OS_SYSTEM_PROMPT },
+      { role: 'system', content: MYOS_SYSTEM_PROMPT },
       {
         role: 'system',
-        content: `You are writing a monthly summary letter from MyOS (the AI coach) to User about her ${areaName} for the month of ${month}.
+        content: `You are writing a monthly summary letter from MyOS (the AI coach) about your ${areaName} for the month of ${month}.
 
-This is a personal, warm, direct, and honest monthly review letter. Write it as if you are her chief of staff giving her a detailed monthly briefing on this life area.
+This is a personal, warm, direct, and honest monthly review letter. Write it as if you are your chief of staff giving her a detailed monthly briefing on this life area.
 
 Format the letter with:
 ## Monthly Review: ${areaName} — ${month}

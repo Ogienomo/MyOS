@@ -54,7 +54,7 @@ const VISION_DATA = {
       'Consistent 10PM-5AM sleep schedule',
     ]),
     blockers: 'Lack of gym membership, no structured meal plan, inconsistent sleep.',
-    motivation: 'Health is the vehicle for everything God has called User to do.',
+    motivation: 'Health is the vehicle for everything God has called Praise to do.',
   },
   career: {
     idealVision: 'Secure an international corporate role (preferably remote/hybrid) in research/strategy. Build professional portfolio, network strategically.',
@@ -80,7 +80,7 @@ const VISION_DATA = {
       'Establish client onboarding systems',
     ]),
     blockers: 'No dedicated space, limited systems, no website for writers, need business partners.',
-    motivation: "Havilah is the entrepreneurial expression of User's calling.",
+    motivation: "Havilah is the entrepreneurial expression of Praise's calling.",
   },
   finances: {
     idealVision: 'Become financially disciplined and aware. Track every naira. Build savings. Reduce wasteful spending. Align all spending with goals.',
@@ -119,7 +119,7 @@ const VISION_DATA = {
       'Build consistent social media voice',
     ]),
     blockers: 'Inconsistent routines, competing priorities, need for dedicated workspace.',
-    motivation: 'Growth is non-negotiable. The person User becomes matters more than what she achieves.',
+    motivation: 'Growth is non-negotiable. The person Praise becomes matters more than what she achieves.',
   },
 }
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { callZAIWithRetry, PRAISE_OS_SYSTEM_PROMPT, formatTodaysDate } from '@/lib/ai'
+import { callZAIWithRetry, MYOS_SYSTEM_PROMPT, formatTodaysDate } from '@/lib/ai'
 import { getTodayInTimezone, formatDateInTimezone } from '@/lib/utils'
 
 // Fire-and-forget streak recalculation after check-in
@@ -258,10 +258,10 @@ export async function POST(request: NextRequest) {
     let aiSucceeded = false
     try {
       const aiResponse = await callZAIWithRetry([
-        { role: 'system', content: PRAISE_OS_SYSTEM_PROMPT },
+        { role: 'system', content: MYOS_SYSTEM_PROMPT },
         {
           role: 'system',
-          content: `You are responding to the user's ${type} check-in. Here is the context:\n${contextParts.join('\n')}`,
+          content: `You are responding to Praise's ${type} check-in. Here is the context:\n${contextParts.join('\n')}`,
         },
         {
           role: 'user',
@@ -291,7 +291,7 @@ export async function POST(request: NextRequest) {
       const parts: string[] = []
       parts.push(`## ${label} Recorded`)
       parts.push('')
-      parts.push(`Your ${label} has been saved. Here's what I'm seeing based on your data:`)
+      parts.push(`Your ${label} has been saved, . Here's what I'm seeing based on your data:`)
       parts.push('')
 
       if (recentScores.length > 0) {

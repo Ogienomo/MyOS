@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getZAI, PRAISE_OS_SYSTEM_PROMPT } from '@/lib/ai'
+import { getZAI, MYOS_SYSTEM_PROMPT } from '@/lib/ai'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
 import { sanitizeForAI } from '@/lib/validation'
 
@@ -26,13 +26,13 @@ export async function POST(request: NextRequest) {
 
     const zai = await getZAI()
 
-    const analysisPrompt = prompt ? sanitizeForAI(prompt) : 'Analyze this image in the context of User\'s life goals and operating system. What does this image show? Extract any relevant information, text, or insights that could be useful for tracking progress, goals, or life areas.'
+    const analysisPrompt = prompt ? sanitizeForAI(prompt) : 'Analyze this image in the context of your life goals and operating system. What does this image show? Extract any relevant information, text, or insights that could be useful for tracking progress, goals, or life areas.'
 
     const response = await zai.chat.completions.createVision({
       messages: [
         {
           role: 'system',
-          content: PRAISE_OS_SYSTEM_PROMPT,
+          content: MYOS_SYSTEM_PROMPT,
         },
         {
           role: 'user',

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Shield, Loader2, CheckCircle2, AlertCircle, Clock, Bell, Mic, Camera, Lock, Sun, Moon, Monitor, Link2, Unlink, Mail, Calendar, RefreshCw, Key, Download, Wallet, BookOpen, Target, Brain, BarChart3, ClipboardCheck, Database, Plus, Trash2, AlarmClock, AlertTriangle, X } from 'lucide-react'
+import { Shield, Loader2, CheckCircle2, AlertCircle, Clock, Bell, Mic, Camera, Lock, Sun, Moon, Monitor, Link2, Unlink, Mail, Calendar, RefreshCw, Key, Download, Wallet, BookOpen, Target, Brain, BarChart3, ClipboardCheck, Database, Plus, Trash2, AlarmClock } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -78,6 +78,104 @@ const tabContentVariants = {
   exit: { opacity: 0, y: -4, transition: { duration: 0.15 } },
 }
 
+// ─── Danger Zone Component ───
+function DangerZoneSection() {
+  const { setIsAuthenticated, setIsSetupComplete } = useAppStore()
+  const [confirmText, setConfirmText] = useState('')
+  const [deleting, setDeleting] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
+
+  const handleDeleteAll = async () => {
+    if (confirmText !== 'DELETE EVERYTHING') return
+    setDeleting(true)
+    try {
+      const res = await fetch('/api/danger-zone', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirmation: 'DELETE EVERYTHING' }),
+      })
+      const data = await res.json()
+      if (res.ok && data.success) {
+        localStorage.removeItem('myos-auth')
+        setIsAuthenticated(false)
+        setIsSetupComplete(false)
+        window.location.reload()
+      } else {
+        alert(data.error || 'Failed to delete data')
+      }
+    } catch {
+      alert('Failed to delete data. Please try again.')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  if (!showConfirm) {
+    return (
+      <Button
+        variant="destructive"
+        className="w-full bg-red-600 hover:bg-red-700 text-white"
+        onClick={() => setShowConfirm(true)}
+      >
+        <Trash2 className="h-4 w-4 mr-2" />
+        Delete All Data
+      </Button>
+    )
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-3 p-4 rounded-xl border-2 border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/30"
+    >
+      <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
+        <AlertCircle className="h-5 w-5" />
+        <p className="text-sm font-semibold">This will permanently erase everything</p>
+      </div>
+      <p className="text-xs text-red-600/80 dark:text-red-300/80">
+        All goals, check-ins, finances, journal entries, habits, streaks, and settings will be deleted. 
+        You will need to set up your OS again from scratch.
+      </p>
+      <div>
+        <Label className="text-xs font-medium text-red-700 dark:text-red-300">
+          Type <span className="font-mono font-bold">DELETE EVERYTHING</span> to confirm
+        </Label>
+        <Input
+          value={confirmText}
+          onChange={(e) => setConfirmText(e.target.value)}
+          placeholder="DELETE EVERYTHING"
+          className="mt-1 border-red-300 dark:border-red-800 focus-visible:border-red-500 focus-visible:ring-red-500/40"
+        />
+      </div>
+      <div className="flex gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          className="flex-1"
+          onClick={() => { setShowConfirm(false); setConfirmText('') }}
+          disabled={deleting}
+        >
+          Cancel
+        </Button>
+        <Button
+          variant="destructive"
+          size="sm"
+          className="flex-1 bg-red-600 hover:bg-red-700"
+          disabled={confirmText !== 'DELETE EVERYTHING' || deleting}
+          onClick={handleDeleteAll}
+        >
+          {deleting ? (
+            <><Loader2 className="h-3 w-3 animate-spin mr-1" />Deleting...</>
+          ) : (
+            <><Trash2 className="h-3 w-3 mr-1" />Delete Everything</>
+          )}
+        </Button>
+      </div>
+    </motion.div>
+  )
+}
+
 export function Settings({ open, onOpenChange }: SettingsProps) {
   const { userSettings, setUserSettings } = useAppStore()
   const { theme, setTheme } = useTheme()
@@ -121,11 +219,6 @@ export function Settings({ open, onOpenChange }: SettingsProps) {
     time: '09:00',
     days: [1, 2, 3, 4, 5] as number[], // Weekdays default
   })
-
-  // Danger Zone state
-  const [dangerStep, setDangerStep] = useState(0) // 0=initial, 1=confirm, 2=done
-  const [dangerConfirmText, setDangerConfirmText] = useState('')
-  const [dangerLoading, setDangerLoading] = useState(false)
 
   useEffect(() => {
     if (open) {
@@ -486,54 +579,6 @@ export function Settings({ open, onOpenChange }: SettingsProps) {
     }
   }
 
-  const handleDeleteAllData = async () => {
-    if (dangerConfirmText !== 'DELETE') return
-    setDangerLoading(true)
-    try {
-      // Delete all data by calling each API endpoint
-      const deleteEndpoints = [
-        '/api/goals',
-        '/api/checkin',
-        '/api/journal',
-        '/api/finances',
-        '/api/habits',
-        '/api/scores',
-        '/api/streaks',
-        '/api/quicklog',
-        '/api/savings-goals',
-        '/api/life-area',
-        '/api/insights',
-        '/api/mood-tags',
-        '/api/notifications/reminders',
-        '/api/notifications/log',
-        '/api/weekly-review',
-        '/api/monthly-summary',
-        '/api/dashboard/widgets',
-      ]
-      await Promise.allSettled(
-        deleteEndpoints.map(url =>
-          fetch(url, { method: 'DELETE' }).catch(() => {})
-        )
-      )
-
-      // Also clear localStorage
-      const keysToRemove = Object.keys(localStorage).filter(
-        k => k.startsWith('myos-') || k === 'myos-auth'
-      )
-      keysToRemove.forEach(k => localStorage.removeItem(k))
-
-      setDangerStep(2)
-      // Reload after a brief delay to show success message
-      setTimeout(() => {
-        window.location.reload()
-      }, 2000)
-    } catch (err) {
-      console.error('Delete all data failed:', err)
-    } finally {
-      setDangerLoading(false)
-    }
-  }
-
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto w-[95vw] sm:w-auto rounded-t-2xl sm:rounded-2xl">
@@ -576,7 +621,6 @@ export function Settings({ open, onOpenChange }: SettingsProps) {
             <TabsTrigger value="integrations" className="text-[10px] sm:text-[11px] px-2 sm:px-2.5 py-2 sm:py-2.5 shrink-0 whitespace-nowrap data-[state=active]:shadow-[inset_0_-2px_0_0_rgba(220,38,38,1)] data-[state=active]:border-b-2 data-[state=active]:border-red-600">Integrations</TabsTrigger>
             <TabsTrigger value="data" className="text-[10px] sm:text-[11px] px-2 sm:px-2.5 py-2 sm:py-2.5 shrink-0 whitespace-nowrap data-[state=active]:shadow-[inset_0_-2px_0_0_rgba(220,38,38,1)] data-[state=active]:border-b-2 data-[state=active]:border-red-600">Data</TabsTrigger>
             <TabsTrigger value="security" className="text-[10px] sm:text-[11px] px-2 sm:px-2.5 py-2 sm:py-2.5 shrink-0 whitespace-nowrap data-[state=active]:shadow-[inset_0_-2px_0_0_rgba(220,38,38,1)] data-[state=active]:border-b-2 data-[state=active]:border-red-600">Security</TabsTrigger>
-            <TabsTrigger value="danger" className="text-[10px] sm:text-[11px] px-2 sm:px-2.5 py-2 sm:py-2.5 shrink-0 whitespace-nowrap data-[state=active]:shadow-[inset_0_-2px_0_0_rgba(220,38,38,1)] data-[state=active]:border-b-2 data-[state=active]:border-red-600 text-red-500">Danger Zone</TabsTrigger>
           </TabsList>
 
           <AnimatePresence mode="wait">
@@ -1320,6 +1364,18 @@ export function Settings({ open, onOpenChange }: SettingsProps) {
                       </Card>
                     ))}
                   </div>
+
+                  {/* ─── DANGER ZONE ─── */}
+                  <div className="mt-6 pt-6 border-t border-red-200 dark:border-red-900/40">
+                    <h3 className="text-sm font-semibold flex items-center gap-2 text-red-600 dark:text-red-400">
+                      <Trash2 className="h-4 w-4" />
+                      Danger Zone
+                    </h3>
+                    <p className="text-xs leading-relaxed text-neutral-500 mt-1 mb-4">
+                      Permanently delete all your data. This action cannot be undone. You will need to set up your OS again from scratch.
+                    </p>
+                    <DangerZoneSection />
+                  </div>
                 </motion.div>
               </TabsContent>
             )}
@@ -1394,141 +1450,6 @@ export function Settings({ open, onOpenChange }: SettingsProps) {
                 </motion.div>
               </TabsContent>
             )}
-            {/* Danger Zone Tab */}
-            {activeTab === 'danger' && (
-              <TabsContent value="danger" className="mt-4" forceMount>
-                <motion.div
-                  key="danger-content"
-                  variants={tabContentVariants}
-                  initial="hidden"
-                  animate="visible"
-                  exit="exit"
-                >
-                  <div className="space-y-6">
-                    {/* Warning banner */}
-                    <div className="rounded-xl border-2 border-red-300 bg-red-50 p-4">
-                      <div className="flex items-start gap-3">
-                        <AlertTriangle className="h-6 w-6 text-red-500 shrink-0 mt-0.5" />
-                        <div>
-                          <h3 className="font-semibold text-red-700 text-sm">Danger Zone</h3>
-                          <p className="text-xs text-red-600 mt-1">
-                            These actions are permanent and cannot be undone. All your data will be lost forever.
-                            Make sure you have exported a backup before proceeding.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Delete All Data */}
-                    <Card className="border-red-200">
-                      <CardContent className="p-5">
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="flex items-start gap-3">
-                            <div className="w-10 h-10 rounded-lg bg-red-100 flex items-center justify-center shrink-0">
-                              <Trash2 className="h-5 w-5 text-red-600" />
-                            </div>
-                            <div>
-                              <h4 className="font-medium text-sm text-neutral-800">Delete All Data</h4>
-                              <p className="text-xs text-neutral-500 mt-0.5">
-                                Permanently delete all your goals, check-ins, journals, finances, habits, scores,
-                                and every other piece of data stored in MyOS. This resets the app to a completely
-                                fresh state — as if you just installed it for the first time.
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Confirmation flow */}
-                        {dangerStep === 0 && (
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            className="mt-4 w-full bg-red-600 hover:bg-red-700"
-                            onClick={() => setDangerStep(1)}
-                          >
-                            <AlertTriangle className="h-4 w-4 mr-2" />
-                            Delete All Data
-                          </Button>
-                        )}
-
-                        {dangerStep === 1 && (
-                          <div className="mt-4 p-4 bg-red-50 rounded-lg border border-red-200">
-                            <p className="text-sm font-medium text-red-700 mb-3">
-                              Are you absolutely sure? Type <span className="font-mono bg-red-100 px-1.5 py-0.5 rounded text-red-800">DELETE</span> to confirm.
-                            </p>
-                            <Input
-                              value={dangerConfirmText}
-                              onChange={(e) => setDangerConfirmText(e.target.value)}
-                              placeholder='Type "DELETE" to confirm'
-                              className="bg-white border-red-300 focus:border-red-500 focus:ring-red-500/30 mb-3"
-                              autoFocus
-                            />
-                            <div className="flex gap-2">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="flex-1"
-                                onClick={() => { setDangerStep(0); setDangerConfirmText('') }}
-                              >
-                                Cancel
-                              </Button>
-                              <Button
-                                variant="destructive"
-                                size="sm"
-                                className="flex-1 bg-red-600 hover:bg-red-700"
-                                disabled={dangerConfirmText !== 'DELETE' || dangerLoading}
-                                onClick={handleDeleteAllData}
-                              >
-                                {dangerLoading ? (
-                                  <><Loader2 className="h-4 w-4 animate-spin mr-2" />Deleting...</>
-                                ) : (
-                                  <>
-                                    <Trash2 className="h-4 w-4 mr-2" />
-                                    Permanently Delete
-                                  </>
-                                )}
-                              </Button>
-                            </div>
-                          </div>
-                        )}
-
-                        {dangerStep === 2 && (
-                          <div className="mt-4 p-4 bg-green-50 rounded-lg border border-green-200 flex items-center gap-3">
-                            <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
-                            <div>
-                              <p className="text-sm font-medium text-green-700">All data deleted successfully</p>
-                              <p className="text-xs text-green-600 mt-0.5">The app will refresh momentarily...</p>
-                            </div>
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-
-                    {/* Reset Auth */}
-                    <Card className="border-red-200">
-                      <CardContent className="p-5">
-                        <div className="flex items-start gap-3">
-                          <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center shrink-0">
-                            <Key className="h-5 w-5 text-orange-600" />
-                          </div>
-                          <div>
-                            <h4 className="font-medium text-sm text-neutral-800">Reset Access Code</h4>
-                            <p className="text-xs text-neutral-500 mt-0.5">
-                              Remove the current access code and set a new one. Your data is preserved — only the
-                              login code changes.
-                            </p>
-                          </div>
-                        </div>
-                        <p className="text-xs text-neutral-400 mt-3">
-                          Use the <strong>Security</strong> tab above to change your access code.
-                        </p>
-                      </CardContent>
-                    </Card>
-                  </div>
-                </motion.div>
-              </TabsContent>
-            )}
-
           </AnimatePresence>
         </Tabs>
       </DialogContent>

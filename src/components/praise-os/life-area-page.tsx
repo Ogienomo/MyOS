@@ -476,7 +476,7 @@ export function LifeAreaPage({ config }: { config: AreaConfig }) {
       const aiMsg = {
         id: (Date.now() + 1).toString(),
         role: 'assistant' as const,
-        content: data.response || 'I am here for you. Let me think about that.',
+        content: data.response || 'I am here for you, . Let me think about that.',
       }
       setCoachMessages((prev) => [...prev, aiMsg])
     } catch {

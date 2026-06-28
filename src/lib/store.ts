@@ -200,6 +200,14 @@ interface AppState {
   isAuthenticated: boolean
   setIsAuthenticated: (val: boolean) => void
 
+  // User Profile
+  userName: string
+  osName: string
+  setUserName: (name: string) => void
+  setOsName: (name: string) => void
+  isSetupComplete: boolean
+  setIsSetupComplete: (val: boolean) => void
+
   // Chat
   chatMessages: ChatMessage[]
   chatLoading: boolean
@@ -320,6 +328,14 @@ export const useAppStore = create<AppState>((set) => ({
   // Auth
   isAuthenticated: false,
   setIsAuthenticated: (val) => set({ isAuthenticated: val }),
+
+  // User Profile
+  userName: '',
+  osName: 'MyOS',
+  setUserName: (name) => set({ userName: name, osName: name ? `${name}OS` : 'MyOS' }),
+  setOsName: (name) => set({ osName: name }),
+  isSetupComplete: false,
+  setIsSetupComplete: (val) => set({ isSetupComplete: val }),
 
   chatMessages: [],
   chatLoading: false,

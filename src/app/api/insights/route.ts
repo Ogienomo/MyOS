@@ -158,7 +158,7 @@ export async function GET(request: NextRequest) {
           messages: [
             {
               role: 'system',
-              content: `You are MyOS, analyzing data to generate actionable insights for User.
+              content: `You are MyOS, analyzing data to generate actionable insights.
 
 Based on the data provided, generate 3-5 concise, actionable insights about mood, energy, focus, and behavioral patterns.
 

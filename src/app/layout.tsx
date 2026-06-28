@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "MyOS - Your Personal Life Operating System",
-  description: "Your personal chief of staff, accountability partner, strategic advisor, and life operating system for User.",
+  title: "MyOS - Life Operating System",
+  description: "Your personal chief of staff, accountability partner, strategic advisor, and personal life operating system.",
   keywords: ["MyOS", "Life Coach", "Accountability", "Goals", "Faith", "Discipline"],
   icons: {
     icon: "/favicon.ico",

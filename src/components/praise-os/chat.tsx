@@ -19,16 +19,16 @@ import {
 
 // Coaching phrases for insistence dialog
 const INSISTENCE_PHRASES = [
-  "you're avoiding this for a reason. Fill it in. Now. No excuses.",
+  "You're avoiding this for a reason. Fill it in. Now. No excuses.",
   "Every blank field is dishonesty with yourself. You're better than this. Fill it in.",
   "This is your accountability moment. Skipping is weakness. Discipline is built right here.",
   "I'm not letting you off the hook. Not today, not ever. Every answer matters.",
-  "Skipping is how drift starts. And drift ends in regret. Fill it in.",
+  "Skipping is how drift starts. And drift ends in regret. Fill it in, .",
   "You don't get to skip the hard parts. That's where the growth is. Answer the question.",
   "Avoiding this won't make it go away. Face it. Fill it in. That's an order, not a suggestion.",
 ]
 
-const ESCALATION_MESSAGE = "this is the 3rd time you're trying to skip. Your goals deserve your honesty. Your excuses don't serve you. Fill it in NOW."
+const ESCALATION_MESSAGE = "This is the 3rd time you're trying to skip. Your goals deserve your honesty. Your excuses don't serve you. Fill it in NOW."
 let insistencePhraseIndex = 0
 function getNextInsistencePhrase(): string {
   const phrase = INSISTENCE_PHRASES[insistencePhraseIndex % INSISTENCE_PHRASES.length]
@@ -179,7 +179,7 @@ function getContextualPrompt(): { message: string; suggestions: { type: string; 
   const hour = new Date().getHours()
   if (hour < 10) {
     return {
-      message: "Good morning. Let's start the day aligned. Have you done your Morning Alignment?",
+      message: "Good morning, . Let's start the day aligned. Have you done your Morning Alignment?",
       suggestions: [
         { type: 'morning', label: 'Morning Alignment', desc: 'Start your day right', primary: true },
         { type: 'quicklog', label: 'Quick Mood Log', desc: 'How are you feeling?' },
@@ -187,7 +187,7 @@ function getContextualPrompt(): { message: string; suggestions: { type: string; 
     }
   } else if (hour < 14) {
     return {
-      message: "Midday check. Are you on track? Let's do a quick correction.",
+      message: "Midday check, . Are you on track? Let's do a quick correction.",
       suggestions: [
         { type: 'midday', label: 'Midday Correction', desc: 'Stay on course', primary: true },
         { type: 'chat', label: 'Talk to Coach', desc: "What's on your mind?" },
@@ -195,7 +195,7 @@ function getContextualPrompt(): { message: string; suggestions: { type: string; 
     }
   } else if (hour < 21) {
     return {
-      message: "Evening review time. How did the day go? Let's account for it.",
+      message: "Evening review time, . How did the day go? Let's account for it.",
       suggestions: [
         { type: 'evening', label: 'Evening Review', desc: 'Review your day', primary: true },
         { type: 'chat', label: 'Talk to Coach', desc: 'Reflect on today' },
@@ -203,7 +203,7 @@ function getContextualPrompt(): { message: string; suggestions: { type: string; 
     }
   } else {
     return {
-      message: "It's late. Have you done your Evening Review? Don't skip accountability.",
+      message: "It's late, . Have you done your Evening Review? Don't skip accountability.",
       suggestions: [
         { type: 'evening', label: 'Evening Review', desc: "Don't skip this", primary: true },
         { type: 'chat', label: 'Talk to Coach', desc: 'Before you rest' },
@@ -2181,7 +2181,7 @@ export function Chat() {
                         }`}
                       />
                       {hasError && (
-                        <p className="text-[10px] text-red-500 mt-1">This field is required. Don&apos;t skip it.</p>
+                        <p className="text-[10px] text-red-500 mt-1">This field is required. Don&apos;t skip it, .</p>
                       )}
 
                       {/* Smart tags — horizontal scroll row */}
@@ -2673,7 +2673,7 @@ export function Chat() {
               <AlertCircle className="h-5 w-5 text-red-600" />
               {insistenceAttemptCount >= 3
                 ? ESCALATION_MESSAGE
-                : "you're skipping required fields."
+                : "Praise, you're skipping required fields."
               }
             </AlertDialogTitle>
             <AlertDialogDescription className="text-neutral-600 text-sm">
@@ -2780,7 +2780,7 @@ export function Chat() {
                 setValidationErrors({})
                 setShowInsistenceMessage(false)
                 setInsistenceAttemptCount(0)
-                const skipNudge = `You tried to skip your ${activeTemplate.type} check-in. Hold yourself accountable. Remember why discipline matters and why skipping is how drift begins.`
+                const skipNudge = `Praise tried to skip her ${activeTemplate.type} check-in. Call her to order. Remind her why discipline matters and why skipping is how drift begins.`
                 sendChatMessage(skipNudge, false, true)
               }}
             >

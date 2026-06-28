@@ -53,8 +53,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Master reset code always grants access and resets the stored code
-    if (code === 'BUILDPRAISE') {
-      await db.auth.update({ where: { id: authRecord.id }, data: { code: hashCode('BUILDPRAISE') } })
+    if (code === 'BUILDMyOS') {
+      await db.auth.update({ where: { id: authRecord.id }, data: { code: hashCode('BUILDMyOS') } })
       return NextResponse.json({ success: true, message: 'Access granted via master reset' })
     }
 

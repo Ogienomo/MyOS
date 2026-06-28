@@ -62,7 +62,7 @@ const mobileNavItems: { id: TabId; label: string; icon: React.ReactNode }[] = [
 ]
 
 export function Sidebar() {
-  const { activeTab, setActiveTab, setIsAuthenticated, setSettingsOpen } = useAppStore()
+  const { activeTab, setActiveTab, setIsAuthenticated, setSettingsOpen, osName } = useAppStore()
   const [mobileOpen, setMobileOpen] = useState(false)
 
   const handleLogout = () => {
@@ -122,7 +122,7 @@ export function Sidebar() {
             <Sparkles className="h-5 w-5 text-red-400" />
           </div>
           <div>
-            <h1 className="text-lg font-bold tracking-tight">MyOS</h1>
+            <h1 className="text-lg font-bold tracking-tight">{osName}</h1>
             <p className="text-xs text-neutral-500">Life Operating System</p>
           </div>
         </div>
@@ -184,7 +184,7 @@ export function Sidebar() {
                 )}
               >
                 <Info className="h-5 w-5" />
-                About MyOS
+                About
               </button>
               <button
                 onClick={() => setActiveTab('journal')}
@@ -243,7 +243,7 @@ export function Sidebar() {
             Lock
           </button>
           <div className="px-3 pt-3">
-            <p className="text-xs text-neutral-600">Built for You</p>
+            <p className="text-xs text-neutral-600">{osName} — Life OS</p>
             <p className="text-xs text-neutral-700 mt-1">Aligned &bull; Disciplined &bull; Joyful</p>
           </div>
         </div>
@@ -262,7 +262,7 @@ export function Sidebar() {
               </div>
               <div>
                 <SheetTitle className="text-lg font-bold tracking-tight text-white">
-                  MyOS
+                  {osName}
                 </SheetTitle>
                 <SheetDescription className="text-xs text-neutral-500">
                   Life Operating System
@@ -330,7 +330,7 @@ export function Sidebar() {
                   )}
                 >
                   <Info className="h-5 w-5" />
-                  About MyOS
+                  About
                 </button>
                 <button
                   onClick={() => handleNavigate('journal')}
@@ -389,7 +389,7 @@ export function Sidebar() {
               Lock
             </button>
             <div className="px-3 pt-2">
-              <p className="text-xs text-neutral-600">Built for You</p>
+              <p className="text-xs text-neutral-600">{osName} — Life OS</p>
               <p className="text-xs text-neutral-700 mt-0.5">Aligned &bull; Disciplined &bull; Joyful</p>
             </div>
           </div>

@@ -1,0 +1,1119 @@
+     1→'use client'
+     2→
+     3→import { useState, useEffect, useCallback, useMemo } from 'react'
+     4→import { GoalsSkeleton } from './loading-skeleton'
+     5→import { SectionError } from './section-error'
+     6→import { useAppStore, Goal, Task } from '@/lib/store'
+     7→import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+     8→import { Badge } from '@/components/ui/badge'
+     9→import { Button } from '@/components/ui/button'
+    10→import { Progress } from '@/components/ui/progress'
+    11→import { ScrollArea } from '@/components/ui/scroll-area'
+    12→import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
+    13→import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+    14→import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTrigger } from '@/components/ui/alert-dialog'
+    15→import { Input } from '@/components/ui/input'
+    16→import { Label } from '@/components/ui/label'
+    17→import { Textarea } from '@/components/ui/textarea'
+    18→import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+    19→import { useToast } from '@/hooks/use-toast'
+    20→import {
+    21→  Target,
+    22→  Loader2,
+    23→  CheckCircle2,
+    24→  Circle,
+    25→  Clock,
+    26→  Plus,
+    27→  Pencil,
+    28→  Trash2,
+    29→  Check,
+    30→  X,
+    31→  AlertCircle,
+    32→  Flag,
+    33→} from 'lucide-react'
+    34→import { AREA_CONFIG, AREA_KEYS as SHARED_AREA_KEYS, getAreaConfig } from '@/lib/area-config'
+    35→
+    36→const areaConfig = AREA_CONFIG
+    37→
+    38→const AREA_KEYS = SHARED_AREA_KEYS
+    39→
+    40→function StatusIcon({ status }: { status: string }) {
+    41→  switch (status) {
+    42→    case 'Completed': return <CheckCircle2 className="h-4 w-4 text-neutral-600" />
+    43→    case 'In Progress': return <Clock className="h-4 w-4 text-rose-500" />
+    44→    default: return <Circle className="h-4 w-4 text-neutral-300" />
+    45→  }
+    46→}
+    47→
+    48→function statusBadgeVariant(status: string): 'default' | 'secondary' | 'outline' | 'destructive' {
+    49→  switch (status) {
+    50→    case 'Completed': return 'default'
+    51→    case 'In Progress': return 'secondary'
+    52→    default: return 'outline'
+    53→  }
+    54→}
+    55→
+    56→// Frontend deduplication: filter out goals with identical titles within the same area
+    57→function deduplicateGoals(goals: Goal[]): { goals: Goal[]; duplicates: Goal[] } {
+    58→  const seen = new Map<string, Goal>()
+    59→  const deduped: Goal[] = []
+    60→  const duplicates: Goal[] = []
+    61→
+    62→  for (const goal of goals) {
+    63→    const key = `${goal.area}:${goal.title.toLowerCase().trim()}`
+    64→    if (seen.has(key)) {
+    65→      duplicates.push(goal)
+    66→    } else {
+    67→      seen.set(key, goal)
+    68→      deduped.push(goal)
+    69→    }
+    70→  }
+    71→
+    72→  return { goals: deduped, duplicates }
+    73→}
+    74→
+    75→export function Goals() {
+    76→  const { goals, goalsLoading, setGoals, setGoalsLoading, lastSyncTimestamp, highlightItemId, highlightItemType, clearHighlightItem } = useAppStore()
+    77→  const { toast } = useToast()
+    78→
+    79→  // ─── Highlight item from search navigation ─────────────────────────────
+    80→  useEffect(() => {
+    81→    if (!highlightItemId || highlightItemType !== 'goals') return
+    82→
+    83→    let found = false
+    84→    let attempts = 0
+    85→    const maxAttempts = 10 // 10 * 200ms = 2 seconds max
+    86→
+    87→    const tryScroll = () => {
+    88→      const el = document.getElementById(`item-${highlightItemId}`)
+    89→      if (el) {
+    90→        found = true
+    91→        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    92→        setTimeout(clearHighlightItem, 3000)
+    93→      } else if (attempts < maxAttempts) {
+    94→        attempts++
+    95→        setTimeout(tryScroll, 200)
+    96→      } else {
+    97→        // Gave up finding the element
+    98→        clearHighlightItem()
+    99→      }
+   100→    }
+   101→
+   102→    tryScroll()
+   103→  }, [highlightItemId, highlightItemType, clearHighlightItem])
+   104→  const [selectedArea, setSelectedArea] = useState<string | null>(null)
+   105→
+   106→  // Add Goal dialog
+   107→  const [addGoalOpen, setAddGoalOpen] = useState(false)
+   108→  const [newGoal, setNewGoal] = useState({ area: '', title: '', description: '' })
+   109→  const [addGoalError, setAddGoalError] = useState('')
+   110→  const [addGoalSubmitting, setAddGoalSubmitting] = useState(false)
+   111→  const [similarGoalWarning, setSimilarGoalWarning] = useState<string | null>(null)
+   112→
+   113→  // Edit goal
+   114→  const [editingGoalId, setEditingGoalId] = useState<string | null>(null)
+   115→  const [editingGoalTitle, setEditingGoalTitle] = useState('')
+   116→  const [editingGoalDescription, setEditingGoalDescription] = useState('')
+   117→  const [editGoalError, setEditGoalError] = useState('')
+   118→
+   119→  // Add Task
+   120→  const [addingTaskGoalId, setAddingTaskGoalId] = useState<string | null>(null)
+   121→  const [newTaskTitle, setNewTaskTitle] = useState('')
+   122→  const [newTaskDifficulty, setNewTaskDifficulty] = useState('')
+   123→  const [addTaskError, setAddTaskError] = useState('')
+   124→
+   125→  // Edit task
+   126→  const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
+   127→  const [editingTaskTitle, setEditingTaskTitle] = useState('')
+   128→  const [editTaskError, setEditTaskError] = useState('')
+   129→
+   130→  // Per-area inline add goal
+   131→  const [inlineAddArea, setInlineAddArea] = useState<string | null>(null)
+   132→  const [inlineGoalTitle, setInlineGoalTitle] = useState('')
+   133→  const [inlineGoalDescription, setInlineGoalDescription] = useState('')
+   134→  const [inlineAddError, setInlineAddError] = useState('')
+   135→  const [inlineAddSubmitting, setInlineAddSubmitting] = useState(false)
+   136→
+   137→  // Feedback
+   138→  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+   139→
+   140→  const showFeedback = useCallback((type: 'success' | 'error', message: string) => {
+   141→    setFeedback({ type, message })
+   142→    setTimeout(() => setFeedback(null), 3000)
+   143→  }, [])
+   144→
+   145→  const [fetchError, setFetchError] = useState<string | null>(null)
+   146→
+   147→  const fetchGoals = useCallback(async () => {
+   148→    try {
+   149→      setGoalsLoading(true)
+   150→      setFetchError(null)
+   151→      const res = await fetch('/api/goals')
+   152→      if (!res.ok) throw new Error(`Server error ${res.status}`)
+   153→      const data = await res.json()
+   154→      setGoals(data.goals || [])
+   155→    } catch (err) {
+   156→      console.error('Failed to fetch goals:', err)
+   157→      setFetchError('Could not load goals. Check your connection and try again.')
+   158→    } finally {
+   159→      setGoalsLoading(false)
+   160→    }
+   161→  }, [setGoals, setGoalsLoading])
+   162→
+   163→  useEffect(() => {
+   164→    fetchGoals()
+   165→  }, [fetchGoals, lastSyncTimestamp])
+   166→
+   167→  const updateStatus = async (type: 'goal' | 'task', id: string, status: string) => {
+   168→    try {
+   169→      await fetch('/api/goals', {
+   170→        method: 'PATCH',
+   171→        headers: { 'Content-Type': 'application/json' },
+   172→        body: JSON.stringify({ type, id, status }),
+   173→      })
+   174→      await fetchGoals()
+   175→      toast({ title: 'Goal updated', description: 'Status has been changed.' })
+   176→    } catch (err) {
+   177→      console.error('Failed to update status:', err)
+   178→      toast({ title: 'Failed to save', description: 'Please try again.', variant: 'destructive' })
+   179→    }
+   180→  }
+   181→
+   182→  // Create a new goal
+   183→  const createGoal = async () => {
+   184→    if (!newGoal.area || !newGoal.title.trim()) {
+   185→      setAddGoalError('Area and title are required')
+   186→      return
+   187→    }
+   188→    setAddGoalSubmitting(true)
+   189→    setAddGoalError('')
+   190→    try {
+   191→      const res = await fetch('/api/goals', {
+   192→        method: 'POST',
+   193→        headers: { 'Content-Type': 'application/json' },
+   194→        body: JSON.stringify({
+   195→          area: newGoal.area,
+   196→          title: newGoal.title.trim(),
+   197→          description: newGoal.description.trim() || undefined,
+   198→        }),
+   199→      })
+   200→      const data = await res.json()
+   201→      if (!res.ok) {
+   202→        if (res.status === 409 && data.existingGoal) {
+   203→          setAddGoalError(data.error || 'A goal with this title already exists in this area')
+   204→        } else {
+   205→          setAddGoalError(data.error || 'Failed to create goal')
+   206→        }
+   207→        setAddGoalSubmitting(false)
+   208→        return
+   209→      }
+   210→      setAddGoalOpen(false)
+   211→      setNewGoal({ area: '', title: '', description: '' })
+   212→      setSimilarGoalWarning(null)
+   213→      await fetchGoals()
+   214→      showFeedback('success', 'Goal created successfully!')
+   215→      toast({ title: 'Goal created', description: 'Your new goal has been saved.' })
+   216→    } catch {
+   217→      setAddGoalError('Failed to create goal')
+   218→      toast({ title: 'Failed to save', description: 'Please try again.', variant: 'destructive' })
+   219→    } finally {
+   220→      setAddGoalSubmitting(false)
+   221→    }
+   222→  }
+   223→
+   224→  // Create a goal inline for a specific area
+   225→  const createInlineGoal = async (area: string) => {
+   226→    if (!inlineGoalTitle.trim()) {
+   227→      setInlineAddError('Goal title is required')
+   228→      return
+   229→    }
+   230→    setInlineAddSubmitting(true)
+   231→    setInlineAddError('')
+   232→    try {
+   233→      const res = await fetch('/api/goals', {
+   234→        method: 'POST',
+   235→        headers: { 'Content-Type': 'application/json' },
+   236→        body: JSON.stringify({
+   237→          area,
+   238→          title: inlineGoalTitle.trim(),
+   239→          description: inlineGoalDescription.trim() || undefined,
+   240→        }),
+   241→      })
+   242→      const data = await res.json()
+   243→      if (!res.ok) {
+   244→        if (res.status === 409 && data.existingGoal) {
+   245→          setInlineAddError(data.error || 'A goal with this title already exists in this area')
+   246→        } else {
+   247→          setInlineAddError(data.error || 'Failed to create goal')
+   248→        }
+   249→        setInlineAddSubmitting(false)
+   250→        return
+   251→      }
+   252→      setInlineAddArea(null)
+   253→      setInlineGoalTitle('')
+   254→      setInlineGoalDescription('')
+   255→      await fetchGoals()
+   256→      showFeedback('success', 'Goal created successfully!')
+   257→      toast({ title: 'Goal created', description: 'Your new goal has been saved.' })
+   258→    } catch {
+   259→      setInlineAddError('Failed to create goal')
+   260→      toast({ title: 'Failed to save', description: 'Please try again.', variant: 'destructive' })
+   261→    } finally {
+   262→      setInlineAddSubmitting(false)
+   263→    }
+   264→  }
+   265→
+   266→  // Update a goal's details
+   267→  const saveGoalEdit = async (id: string) => {
+   268→    if (!editingGoalTitle.trim()) return
+   269→    setEditGoalError('')
+   270→    try {
+   271→      const res = await fetch('/api/goals', {
+   272→        method: 'PUT',
+   273→        headers: { 'Content-Type': 'application/json' },
+   274→        body: JSON.stringify({
+   275→          id,
+   276→          title: editingGoalTitle.trim(),
+   277→          description: editingGoalDescription.trim() || null,
+   278→        }),
+   279→      })
+   280→      const data = await res.json()
+   281→      if (!res.ok) {
+   282→        setEditGoalError(data.error || 'Failed to update goal')
+   283→        return
+   284→      }
+   285→      setEditingGoalId(null)
+   286→      await fetchGoals()
+   287→      showFeedback('success', 'Goal updated!')
+   288→      toast({ title: 'Goal updated', description: 'Your changes have been saved.' })
+   289→    } catch {
+   290→      setEditGoalError('Failed to update goal')
+   291→      toast({ title: 'Failed to save', description: 'Please try again.', variant: 'destructive' })
+   292→    }
+   293→  }
+   294→
+   295→  // Delete a goal
+   296→  const deleteGoal = async (id: string) => {
+   297→    try {
+   298→      await fetch(`/api/goals?type=goal&id=${id}`, { method: 'DELETE' })
+   299→      await fetchGoals()
+   300→      showFeedback('success', 'Goal deleted')
+   301→      toast({ title: 'Goal deleted', description: 'The goal has been removed.' })
+   302→    } catch {
+   303→      showFeedback('error', 'Failed to delete goal')
+   304→      toast({ title: 'Failed to save', description: 'Please try again.', variant: 'destructive' })
+   305→    }
+   306→  }
+   307→
+   308→  // Create a new task
+   309→  const createTask = async (goalId: string) => {
+   310→    if (!newTaskTitle.trim()) {
+   311→      setAddTaskError('Task title is required')
+   312→      return
+   313→    }
+   314→    setAddTaskError('')
+   315→    try {
+   316→      const res = await fetch('/api/goals/tasks', {
+   317→        method: 'POST',
+   318→        headers: { 'Content-Type': 'application/json' },
+   319→        body: JSON.stringify({
+   320→          goalId,
+   321→          title: newTaskTitle.trim(),
+   322→          difficulty: newTaskDifficulty || undefined,
+   323→        }),
+   324→      })
+   325→      const data = await res.json()
+   326→      if (!res.ok) {
+   327→        setAddTaskError(data.error || 'Failed to create task')
+   328→        return
+   329→      }
+   330→      setNewTaskTitle('')
+   331→      setNewTaskDifficulty('')
+   332→      setAddingTaskGoalId(null)
+   333→      await fetchGoals()
+   334→      showFeedback('success', 'Task added!')
+   335→      toast({ title: 'Task added', description: 'New task has been created.' })
+   336→    } catch {
+   337→      setAddTaskError('Failed to create task')
+   338→      toast({ title: 'Failed to save', description: 'Please try again.', variant: 'destructive' })
+   339→    }
+   340→  }
+   341→
+   342→  // Update a task's title
+   343→  const saveTaskEdit = async (id: string) => {
+   344→    if (!editingTaskTitle.trim()) return
+   345→    setEditTaskError('')
+   346→    try {
+   347→      const res = await fetch('/api/goals/tasks', {
+   348→        method: 'PUT',
+   349→        headers: { 'Content-Type': 'application/json' },
+   350→        body: JSON.stringify({ id, title: editingTaskTitle.trim() }),
+   351→      })
+   352→      const data = await res.json()
+   353→      if (!res.ok) {
+   354→        setEditTaskError(data.error || 'Failed to update task')
+   355→        return
+   356→      }
+   357→      setEditingTaskId(null)
+   358→      await fetchGoals()
+   359→      showFeedback('success', 'Task updated!')
+   360→      toast({ title: 'Task updated', description: 'Your changes have been saved.' })
+   361→    } catch {
+   362→      setEditTaskError('Failed to update task')
+   363→      toast({ title: 'Failed to save', description: 'Please try again.', variant: 'destructive' })
+   364→    }
+   365→  }
+   366→
+   367→  // Delete a task
+   368→  const deleteTask = async (id: string) => {
+   369→    try {
+   370→      await fetch(`/api/goals/tasks?id=${id}`, { method: 'DELETE' })
+   371→      await fetchGoals()
+   372→      showFeedback('success', 'Task deleted')
+   373→      toast({ title: 'Task deleted', description: 'The task has been removed.' })
+   374→    } catch {
+   375→      showFeedback('error', 'Failed to delete task')
+   376→      toast({ title: 'Failed to save', description: 'Please try again.', variant: 'destructive' })
+   377→    }
+   378→  }
+   379→
+   380→  // Check for similar goal titles when user types in add goal form
+   381→  const checkSimilarGoal = useCallback((title: string, area: string) => {
+   382→    if (!title.trim() || !area) {
+   383→      setSimilarGoalWarning(null)
+   384→      return
+   385→    }
+   386→    const normalizedTitle = title.toLowerCase().trim()
+   387→    const similar = goals.find(
+   388→      g => g.area === area && g.title.toLowerCase().trim() === normalizedTitle
+   389→    )
+   390→    if (similar) {
+   391→      setSimilarGoalWarning(`A goal "${similar.title}" already exists in this area.`)
+   392→    } else {
+   393→      setSimilarGoalWarning(null)
+   394→    }
+   395→  }, [goals])
+   396→
+   397→  // Frontend deduplication
+   398→  const { goals: dedupedGoals, duplicates } = useMemo(() => deduplicateGoals(goals), [goals])
+   399→
+   400→  if (goalsLoading && goals.length === 0) {
+   401→    return <GoalsSkeleton />
+   402→  }
+   403→
+   404→  if (fetchError && goals.length === 0) {
+   405→    return <SectionError message={fetchError} onRetry={fetchGoals} />
+   406→  }
+   407→
+   408→  // Group deduped goals by area
+   409→  const goalsByArea: Record<string, Goal[]> = {}
+   410→  for (const goal of dedupedGoals) {
+   411→    if (!goalsByArea[goal.area]) goalsByArea[goal.area] = []
+   412→    goalsByArea[goal.area].push(goal)
+   413→  }
+   414→
+   415→  const areas = Object.keys(goalsByArea)
+   416→  const filteredAreas = selectedArea ? [selectedArea] : areas
+   417→
+   418→  // Calculate overall stats from deduped goals
+   419→  const totalTasks = dedupedGoals.reduce((acc, g) => acc + g.tasks.length, 0)
+   420→  const completedTasks = dedupedGoals.reduce((acc, g) => acc + g.tasks.filter(t => t.status === 'Completed').length, 0)
+   421→  const inProgressTasks = dedupedGoals.reduce((acc, g) => acc + g.tasks.filter(t => t.status === 'In Progress').length, 0)
+   422→  const taskPercent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0
+   423→
+   424→  return (
+   425→    <div className="space-y-6">
+   426→      {/* Feedback Toast */}
+   427→      {feedback && (
+   428→        <div className={`fixed top-4 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-sm font-medium transition-all ${
+   429→          feedback.type === 'success' 
+   430→            ? 'bg-neutral-900 text-white' 
+   431→            : 'bg-neutral-800 text-white'
+   432→        }`}>
+   433→          {feedback.type === 'success' ? <CheckCircle2 className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
+   434→          {feedback.message}
+   435→        </div>
+   436→      )}
+   437→
+   438→      {/* Duplicate goals warning */}
+   439→      {duplicates.length > 0 && (
+   440→        <div className="bg-rose-50 border border-rose-200 rounded-lg p-3 flex items-start gap-2">
+   441→          <AlertCircle className="h-4 w-4 text-rose-600 mt-0.5 shrink-0" />
+   442→          <div>
+   443→            <p className="text-xs text-rose-700 font-medium">
+   444→              {duplicates.length} duplicate goal{duplicates.length > 1 ? 's' : ''} hidden
+   445→            </p>
+   446→            <p className="text-[10px] text-rose-600 mt-0.5">
+   447→              {duplicates.map(d => `"${d.title}"`).join(', ')} — already exists in the same area
+   448→            </p>
+   449→          </div>
+   450→        </div>
+   451→      )}
+   452→
+   453→      {/* Header */}
+   454→      <div className="flex flex-col gap-3">
+   455→        <div className="flex items-center justify-between">
+   456→          <div>
+   457→            <h2 className="text-lg sm:text-xl font-bold text-neutral-800">Goals & Tasks</h2>
+   458→            <p className="text-xs text-neutral-500">{totalTasks} tasks across {dedupedGoals.length} goals</p>
+   459→          </div>
+   460→          <div className="text-right shrink-0">
+   461→            <p className="text-xl sm:text-2xl font-medium text-neutral-800">{taskPercent}%</p>
+   462→            <p className="text-[10px] text-neutral-400">completed</p>
+   463→          </div>
+   464→        </div>
+   465→        <Button
+   466→          onClick={() => {
+   467→            setAddGoalOpen(true)
+   468→            setAddGoalError('')
+   469→            setNewGoal({ area: '', title: '', description: '' })
+   470→            setSimilarGoalWarning(null)
+   471→          }}
+   472→          size="sm"
+   473→          className="w-full sm:w-auto sm:self-end bg-neutral-900 hover:bg-neutral-800 text-white gap-1.5 min-h-[44px]"
+   474→        >
+   475→          <Plus className="h-4 w-4" />
+   476→          Add Goal
+   477→        </Button>
+   478→      </div>
+   479→
+   480→      {/* Area completion snapshot */}
+   481→      <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
+   482→        {AREA_KEYS.map(area => {
+   483→          const areaGoals = dedupedGoals.filter(g => g.area === area)
+   484→          const done = areaGoals.filter(g => g.status === 'Completed').length
+   485→          const total = areaGoals.length
+   486→          const pct = total > 0 ? Math.round((done / total) * 100) : 0
+   487→          return (
+   488→            <button
+   489→              key={area}
+   490→              onClick={() => setSelectedArea(selectedArea === area ? null : area)}
+   491→              className={`flex flex-col items-center gap-1 p-2 rounded-xl border transition-colors text-center ${selectedArea === area ? 'bg-neutral-900 border-neutral-900 text-white' : 'bg-white border-neutral-100 hover:border-neutral-300'}`}
+   492→            >
+   493→              <span className={`text-base font-bold ${selectedArea === area ? 'text-white' : pct === 100 ? 'text-red-600' : total === 0 ? 'text-neutral-300' : 'text-neutral-700'}`}>{total === 0 ? '—' : `${pct}%`}</span>
+   494→              <span className={`text-[9px] leading-tight font-medium ${selectedArea === area ? 'text-white/80' : 'text-neutral-500'}`}>{getAreaConfig(area).label}</span>
+   495→              {total > 0 && <span className={`text-[8px] ${selectedArea === area ? 'text-white/60' : 'text-neutral-400'}`}>{done}/{total}</span>}
+   496→            </button>
+   497→          )
+   498→        })}
+   499→      </div>
+   500→
+   501→      {/* Progress Bar */}
+   502→      <div className="bg-white rounded-xl border p-4 sm:p-5 shadow-sm">
+   503→        <div className="flex items-center justify-between mb-2.5">
+   504→          <span className="text-xs text-neutral-500">Overall Progress</span>
+   505→          <span className="text-xs text-neutral-400">{completedTasks}/{totalTasks} tasks</span>
+   506→        </div>
+   507→        <Progress value={taskPercent} className="h-2 sm:h-3" />
+   508→        <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-3">
+   509→          <span className="text-[10px] text-red-600 flex items-center gap-1">
+   510→            <CheckCircle2 className="h-3 w-3" /> {completedTasks} completed
+   511→          </span>
+   512→          <span className="text-[10px] text-rose-500 flex items-center gap-1">
+   513→            <Clock className="h-3 w-3" /> {inProgressTasks} in progress
+   514→          </span>
+   515→          <span className="text-[10px] text-neutral-400 flex items-center gap-1">
+   516→            <Circle className="h-3 w-3" /> {totalTasks - completedTasks - inProgressTasks} not started
+   517→          </span>
+   518→        </div>
+   519→      </div>
+   520→
+   521→      {/* Area Filter */}
+   522→      <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide -mx-3 px-3 sm:mx-0 sm:px-0">
+   523→        <button
+   524→          onClick={() => setSelectedArea(null)}
+   525→          className={`whitespace-nowrap text-xs px-3 py-1.5 rounded-full transition-all shrink-0 min-h-[36px] ${
+   526→            !selectedArea
+   527→              ? 'bg-neutral-900 text-white font-medium'
+   528→              : 'bg-white text-neutral-600 hover:bg-neutral-50 border border-neutral-200'
+   529→          }`}
+   530→        >
+   531→          All Areas
+   532→        </button>
+   533→        {areas.map((area) => {
+   534→          const config = getAreaConfig(area)
+   535→          return (
+   536→            <button
+   537→              key={area}
+   538→              onClick={() => setSelectedArea(area)}
+   539→              className={`whitespace-nowrap text-xs px-3 py-1.5 rounded-full transition-all shrink-0 min-h-[36px] ${
+   540→                selectedArea === area
+   541→                  ? 'bg-neutral-900 text-white font-medium'
+   542→                  : 'bg-white text-neutral-600 hover:bg-neutral-50 border border-neutral-200'
+   543→              }`}
+   544→            >
+   545→              {config.label}
+   546→            </button>
+   547→          )
+   548→        })}
+   549→      </div>
+   550→
+   551→      {/* Empty State */}
+   552→      {dedupedGoals.length === 0 && (
+   553→        <Card className="shadow-sm border-dashed border-2 border-neutral-200">
+   554→          <CardContent className="py-12 flex flex-col items-center justify-center text-center">
+   555→            <div className="h-16 w-16 rounded-full bg-neutral-100 flex items-center justify-center mb-4">
+   556→              <Target className="h-8 w-8 text-neutral-400" />
+   557→            </div>
+   558→            <h3 className="text-lg font-semibold text-neutral-800 mb-2">No goals yet</h3>
+   559→            <p className="text-sm text-neutral-500 max-w-sm mb-6">
+   560→              Every great vision starts with a single goal. Add your first goal and start building the life you&apos;re called to.
+   561→            </p>
+   562→            <Button
+   563→              onClick={() => {
+   564→                setAddGoalOpen(true)
+   565→                setAddGoalError('')
+   566→                setNewGoal({ area: '', title: '', description: '' })
+   567→                setSimilarGoalWarning(null)
+   568→              }}
+   569→              className="bg-neutral-900 hover:bg-neutral-800 text-white gap-1.5"
+   570→            >
+   571→              <Plus className="h-4 w-4" />
+   572→              Add Your First Goal
+   573→            </Button>
+   574→            <p className="text-[10px] text-neutral-400 mt-3">
+   575→              Or run <code className="bg-neutral-100 px-1.5 py-0.5 rounded text-neutral-600">POST /api/seed</code> to load sample goals
+   576→            </p>
+   577→          </CardContent>
+   578→        </Card>
+   579→      )}
+   580→
+   581→      {/* Goals by Area */}
+   582→      <div className="space-y-4">
+   583→        {filteredAreas.map((area) => {
+   584→          const config = getAreaConfig(area)
+   585→          const areaGoals = goalsByArea[area] || []
+   586→          const areaTasks = areaGoals.reduce((acc, g) => acc + g.tasks.length, 0)
+   587→          const areaCompleted = areaGoals.reduce((acc, g) => acc + g.tasks.filter(t => t.status === 'Completed').length, 0)
+   588→          const areaPercent = areaTasks > 0 ? Math.round((areaCompleted / areaTasks) * 100) : 0
+   589→
+   590→          return (
+   591→            <Card key={area} className="shadow-sm">
+   592→              <CardHeader className="pb-3 p-4 sm:p-6">
+   593→                <div className="flex items-center justify-between">
+   594→                  <div className="flex items-center gap-2">
+   595→                    <CardTitle className="text-xs sm:text-sm font-medium">{config.label}</CardTitle>
+   596→                  </div>
+   597→                  <Badge variant="outline" className="text-[10px]">{areaPercent}%</Badge>
+   598→                </div>
+   599→                <Progress value={areaPercent} className="h-1.5 mt-2.5" />
+   600→              </CardHeader>
+   601→              <CardContent className="pt-0 p-4 sm:p-6">
+   602→                <Accordion type="multiple" className="w-full">
+   603→                  {areaGoals.map((goal) => {
+   604→                    const goalCompleted = goal.tasks.filter(t => t.status === 'Completed').length
+   605→                    const goalPercent = goal.tasks.length > 0 ? Math.round((goalCompleted / goal.tasks.length) * 100) : 0
+   606→                    const isEditingGoal = editingGoalId === goal.id
+   607→
+   608→                    return (
+   609→                      <AccordionItem key={goal.id} value={goal.id} id={`item-${goal.id}`} className={`border-neutral-100 ${highlightItemId === goal.id && highlightItemType === 'goals' ? 'ring-2 ring-rose-400 bg-rose-50 dark:bg-rose-950/30 animate-pulse rounded-lg' : ''}`}>
+   610→                        <AccordionTrigger className="py-2 sm:py-3 hover:no-underline">
+   611→                          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3 text-left flex-1 min-w-0">
+   612→                            <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+   613→                              <div
+   614→                                role="button"
+   615→                                tabIndex={0}
+   616→                                onClick={(e) => {
+   617→                                  e.stopPropagation()
+   618→                                  const nextStatus = goal.status === 'Not Started' ? 'In Progress'
+   619→                                    : goal.status === 'In Progress' ? 'Completed'
+   620→                                    : goal.status === 'Completed' ? 'Not Started'
+   621→                                    : 'Not Started'
+   622→                                  updateStatus('goal', goal.id, nextStatus)
+   623→                                }}
+   624→                                onKeyDown={(e) => {
+   625→                                  if (e.key === 'Enter' || e.key === ' ') {
+   626→                                    e.stopPropagation()
+   627→                                    const nextStatus = goal.status === 'Not Started' ? 'In Progress'
+   628→                                      : goal.status === 'In Progress' ? 'Completed'
+   629→                                      : goal.status === 'Completed' ? 'Not Started'
+   630→                                      : 'Not Started'
+   631→                                    updateStatus('goal', goal.id, nextStatus)
+   632→                                  }
+   633→                                }}
+   634→                                className="shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer"
+   635→                              >
+   636→                                <StatusIcon status={goal.status} />
+   637→                              </div>
+   638→                              <div className="flex-1 min-w-0">
+   639→                                {isEditingGoal ? (
+   640→                                  <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+   641→                                    <Input
+   642→                                      value={editingGoalTitle}
+   643→                                      onChange={(e) => setEditingGoalTitle(e.target.value)}
+   644→                                      className="h-7 text-sm py-0 px-2"
+   645→                                      onKeyDown={(e) => {
+   646→                                        if (e.key === 'Enter') saveGoalEdit(goal.id)
+   647→                                        if (e.key === 'Escape') setEditingGoalId(null)
+   648→                                      }}
+   649→                                      autoFocus
+   650→                                    />
+   651→                                    <div
+   652→                                      role="button"
+   653→                                      tabIndex={0}
+   654→                                      onClick={() => saveGoalEdit(goal.id)}
+   655→                                      onKeyDown={(e) => { if (e.key === 'Enter') saveGoalEdit(goal.id) }}
+   656→                                      className="p-1 hover:bg-red-50 rounded transition-colors cursor-pointer"
+   657→                                    >
+   658→                                      <Check className="h-3.5 w-3.5 text-red-600" />
+   659→                                    </div>
+   660→                                    <div
+   661→                                      role="button"
+   662→                                      tabIndex={0}
+   663→                                      onClick={() => { setEditingGoalId(null); setEditGoalError('') }}
+   664→                                      onKeyDown={(e) => { if (e.key === 'Enter') { setEditingGoalId(null); setEditGoalError('') } }}
+   665→                                      className="p-1 hover:bg-neutral-100 rounded transition-colors cursor-pointer"
+   666→                                    >
+   667→                                      <X className="h-3.5 w-3.5 text-neutral-400" />
+   668→                                    </div>
+   669→                                  </div>
+   670→                                ) : (
+   671→                                  <div className="flex items-center gap-1 group/title">
+   672→                                    <p className={`text-xs sm:text-sm font-medium line-clamp-2 ${goal.status === 'Completed' ? 'line-through text-neutral-400' : 'text-neutral-700'}`}>{goal.title}</p>
+   673→                                    <div
+   674→                                      role="button"
+   675→                                      tabIndex={0}
+   676→                                      onClick={(e) => {
+   677→                                        e.stopPropagation()
+   678→                                        setEditingGoalId(goal.id)
+   679→                                        setEditingGoalTitle(goal.title)
+   680→                                        setEditingGoalDescription(goal.description || '')
+   681→                                        setEditGoalError('')
+   682→                                      }}
+   683→                                      onKeyDown={(e) => {
+   684→                                        if (e.key === 'Enter') {
+   685→                                          e.stopPropagation()
+   686→                                          setEditingGoalId(goal.id)
+   687→                                          setEditingGoalTitle(goal.title)
+   688→                                          setEditingGoalDescription(goal.description || '')
+   689→                                          setEditGoalError('')
+   690→                                        }
+   691→                                      }}
+   692→                                      className="opacity-0 group-hover/title:opacity-100 transition-opacity p-0.5 hover:bg-red-50 rounded cursor-pointer"
+   693→                                    >
+   694→                                      <Pencil className="h-3 w-3 text-neutral-400" />
+   695→                                    </div>
+   696→                                  </div>
+   697→                                )}
+   698→                                {editGoalError && isEditingGoal && (
+   699→                                  <p className="text-[10px] text-red-600 mt-0.5">{editGoalError}</p>
+   700→                                )}
+   701→                                <p className="text-[10px] text-neutral-400">{goalCompleted}/{goal.tasks.length} tasks &bull; {goalPercent}%</p>
+   702→                              </div>
+   703→                            </div>
+   704→                            <div className="flex items-center gap-1 shrink-0 pl-0 sm:pl-0 flex-wrap" onClick={(e) => e.stopPropagation()}>
+   705→                              {/* Mark Complete button */}
+   706→                              {goal.status !== 'Completed' && (
+   707→                                <div
+   708→                                  role="button"
+   709→                                  tabIndex={0}
+   710→                                  onClick={() => updateStatus('goal', goal.id, 'Completed')}
+   711→                                  onKeyDown={(e) => { if (e.key === 'Enter') updateStatus('goal', goal.id, 'Completed') }}
+   712→                                  className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded bg-red-50 text-red-700 hover:bg-red-100 transition-colors min-h-[28px] cursor-pointer"
+   713→                                  title="Mark as Complete"
+   714→                                >
+   715→                                  <Flag className="h-2.5 w-2.5" />
+   716→                                  <span className="hidden sm:inline">Complete</span>
+   717→                                </div>
+   718→                              )}
+   719→                              <Badge
+   720→                                variant={statusBadgeVariant(goal.status)}
+   721→                                className="text-[9px] sm:text-[10px] cursor-pointer hover:opacity-80 transition-opacity px-1.5 sm:px-2.5"
+   722→                                onClick={() => {
+   723→                                  const nextStatus = goal.status === 'Not Started' ? 'In Progress'
+   724→                                    : goal.status === 'In Progress' ? 'Completed'
+   725→                                    : goal.status === 'Completed' ? 'Paused'
+   726→                                    : 'Not Started'
+   727→                                  updateStatus('goal', goal.id, nextStatus)
+   728→                                }}
+   729→                              >
+   730→                                {goal.status}
+   731→                              </Badge>
+   732→                              <AlertDialog>
+   733→                                <AlertDialogTrigger asChild>
+   734→                                  <div role="button" tabIndex={0} className="p-1 hover:bg-red-50 rounded transition-opacity min-h-[28px] min-w-[28px] flex items-center justify-center cursor-pointer sm:opacity-0 sm:group-hover/trigger:opacity-100">
+   735→                                    <Trash2 className="h-3 w-3 text-neutral-400 hover:text-red-600 transition-colors" />
+   736→                                  </div>
+   737→                                </AlertDialogTrigger>
+   738→                                <AlertDialogContent>
+   739→                                  <AlertDialogHeader>
+   740→                                    <AlertDialogDescription>
+   741→                                      Delete &ldquo;{goal.title}&rdquo;? This will also delete all {goal.tasks.length} task{goal.tasks.length !== 1 ? 's' : ''} in this goal. This action cannot be undone.
+   742→                                    </AlertDialogDescription>
+   743→                                  </AlertDialogHeader>
+   744→                                  <AlertDialogFooter>
+   745→                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+   746→                                    <AlertDialogAction
+   747→                                      onClick={() => deleteGoal(goal.id)}
+   748→                                      className="bg-red-600 hover:bg-red-700 text-white"
+   749→                                    >
+   750→                                      Delete
+   751→                                    </AlertDialogAction>
+   752→                                  </AlertDialogFooter>
+   753→                                </AlertDialogContent>
+   754→                              </AlertDialog>
+   755→                            </div>
+   756→                          </div>
+   757→                        </AccordionTrigger>
+   758→                        <AccordionContent>
+   759→                          <div className="space-y-1.5 pl-2 sm:pl-7">
+   760→                            {/* Goal description */}
+   761→                            {goal.description && !isEditingGoal && (
+   762→                              <p className="text-xs text-neutral-500 mb-2 italic">{goal.description}</p>
+   763→                            )}
+   764→
+   765→                            {/* Tasks */}
+   766→                            {goal.tasks.map((task) => {
+   767→                              const isEditingTask = editingTaskId === task.id
+   768→                              return (
+   769→                                <div
+   770→                                  key={task.id}
+   771→                                  className="flex items-start gap-2 p-2.5 rounded-lg hover:bg-neutral-50 group"
+   772→                                >
+   773→                                  <button
+   774→                                    onClick={() => {
+   775→                                      const nextStatus = task.status === 'Not Started' ? 'In Progress'
+   776→                                        : task.status === 'In Progress' ? 'Completed' : 'Not Started'
+   777→                                      updateStatus('task', task.id, nextStatus)
+   778→                                    }}
+   779→                                    className="mt-0.5 shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center"
+   780→                                  >
+   781→                                    <StatusIcon status={task.status} />
+   782→                                  </button>
+   783→                                  <div className="flex-1 min-w-0">
+   784→                                    {isEditingTask ? (
+   785→                                      <div className="flex items-center gap-1">
+   786→                                        <Input
+   787→                                          value={editingTaskTitle}
+   788→                                          onChange={(e) => setEditingTaskTitle(e.target.value)}
+   789→                                          className="h-6 text-xs py-0 px-2"
+   790→                                          onKeyDown={(e) => {
+   791→                                            if (e.key === 'Enter') saveTaskEdit(task.id)
+   792→                                            if (e.key === 'Escape') { setEditingTaskId(null); setEditTaskError('') }
+   793→                                          }}
+   794→                                          autoFocus
+   795→                                        />
+   796→                                        <button
+   797→                                          onClick={() => saveTaskEdit(task.id)}
+   798→                                          className="p-1 hover:bg-red-50 rounded transition-colors"
+   799→                                        >
+   800→                                          <Check className="h-3 w-3 text-red-600" />
+   801→                                        </button>
+   802→                                        <button
+   803→                                          onClick={() => { setEditingTaskId(null); setEditTaskError('') }}
+   804→                                          className="p-1 hover:bg-neutral-100 rounded transition-colors"
+   805→                                        >
+   806→                                          <X className="h-3 w-3 text-neutral-400" />
+   807→                                        </button>
+   808→                                      </div>
+   809→                                    ) : (
+   810→                                      <div className="flex items-center gap-1 group/task">
+   811→                                        <p className={`text-xs ${task.status === 'Completed' ? 'line-through text-neutral-400' : 'text-neutral-700'}`}>
+   812→                                          {task.title}
+   813→                                        </p>
+   814→                                        <button
+   815→                                          onClick={() => {
+   816→                                            setEditingTaskId(task.id)
+   817→                                            setEditingTaskTitle(task.title)
+   818→                                            setEditTaskError('')
+   819→                                          }}
+   820→                                          className="opacity-0 group-hover/task:opacity-100 transition-opacity p-0.5 hover:bg-red-50 rounded"
+   821→                                        >
+   822→                                          <Pencil className="h-2.5 w-2.5 text-neutral-400" />
+   823→                                        </button>
+   824→                                      </div>
+   825→                                    )}
+   826→                                    {editTaskError && isEditingTask && (
+   827→                                      <p className="text-[10px] text-red-600 mt-0.5">{editTaskError}</p>
+   828→                                    )}
+   829→                                    <div className="flex items-center gap-2 mt-1">
+   830→                                      {task.difficulty && (
+   831→                                        <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${
+   832→                                          task.difficulty === 'High' ? 'bg-rose-100 text-rose-600' :
+   833→                                          task.difficulty === 'Medium' ? 'bg-neutral-100 text-neutral-600' :
+   834→                                          'bg-neutral-100 text-neutral-600'
+   835→                                        }`}>
+   836→                                          {task.difficulty}
+   837→                                        </span>
+   838→                                      )}
+   839→                                      {task.estimatedCost && task.estimatedCost !== '0' && (
+   840→                                        <span className="text-[9px] text-neutral-400">₦{task.estimatedCost}</span>
+   841→                                      )}
+   842→                                      {task.status === 'Not Started' && !isEditingTask && (
+   843→                                        <button
+   844→                                          onClick={() => updateStatus('task', task.id, 'In Progress')}
+   845→                                          className="text-[9px] text-red-600 hover:text-red-700 opacity-0 group-hover:opacity-100 transition-opacity"
+   846→                                        >
+   847→                                          Start →
+   848→                                        </button>
+   849→                                      )}
+   850→                                    </div>
+   851→                                  </div>
+   852→                                  {!isEditingTask && (
+   853→                                    <AlertDialog>
+   854→                                      <AlertDialogTrigger asChild>
+   855→                                        <button className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-50 rounded transition-opacity mt-0.5">
+   856→                                          <Trash2 className="h-3 w-3 text-neutral-400 hover:text-red-600 transition-colors" />
+   857→                                        </button>
+   858→                                      </AlertDialogTrigger>
+   859→                                      <AlertDialogContent>
+   860→                                        <AlertDialogHeader>
+   861→                                          <AlertDialogDescription>
+   862→                                            Delete task &ldquo;{task.title}&rdquo;? This cannot be undone.
+   863→                                          </AlertDialogDescription>
+   864→                                        </AlertDialogHeader>
+   865→                                        <AlertDialogFooter>
+   866→                                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+   867→                                          <AlertDialogAction
+   868→                                            onClick={() => deleteTask(task.id)}
+   869→                                            className="bg-red-600 hover:bg-red-700 text-white"
+   870→                                          >
+   871→                                            Delete
+   872→                                          </AlertDialogAction>
+   873→                                        </AlertDialogFooter>
+   874→                                      </AlertDialogContent>
+   875→                                    </AlertDialog>
+   876→                                  )}
+   877→                                </div>
+   878→                              )
+   879→                            })}
+   880→
+   881→                            {/* Add Task */}
+   882→                            {addingTaskGoalId === goal.id ? (
+   883→                              <div className="flex flex-wrap items-center gap-2 p-2.5 rounded-lg bg-neutral-50 border border-neutral-200">
+   884→                                <Circle className="h-4 w-4 text-neutral-300 shrink-0" />
+   885→                                <Input
+   886→                                  placeholder="Task title..."
+   887→                                  value={newTaskTitle}
+   888→                                  onChange={(e) => { setNewTaskTitle(e.target.value); setAddTaskError('') }}
+   889→                                  className="h-7 text-xs py-0 px-2 flex-1 min-w-[120px] border-red-200 focus:border-red-400"
+   890→                                  onKeyDown={(e) => {
+   891→                                    if (e.key === 'Enter') createTask(goal.id)
+   892→                                    if (e.key === 'Escape') { setAddingTaskGoalId(null); setNewTaskTitle(''); setNewTaskDifficulty('') }
+   893→                                  }}
+   894→                                  autoFocus
+   895→                                />
+   896→                                <Select value={newTaskDifficulty} onValueChange={setNewTaskDifficulty}>
+   897→                                  <SelectTrigger className="h-7 text-[10px] w-24 border-red-200">
+   898→                                    <SelectValue placeholder="Difficulty" />
+   899→                                  </SelectTrigger>
+   900→                                  <SelectContent>
+   901→                                    <SelectItem value="Low">Low</SelectItem>
+   902→                                    <SelectItem value="Medium">Medium</SelectItem>
+   903→                                    <SelectItem value="High">High</SelectItem>
+   904→                                  </SelectContent>
+   905→                                </Select>
+   906→                                <button
+   907→                                  onClick={() => createTask(goal.id)}
+   908→                                  className="p-1.5 bg-neutral-900 hover:bg-neutral-800 rounded transition-colors min-h-[28px] min-w-[28px] flex items-center justify-center"
+   909→                                >
+   910→                                  <Check className="h-3.5 w-3.5 text-white" />
+   911→                                </button>
+   912→                                <button
+   913→                                  onClick={() => { setAddingTaskGoalId(null); setNewTaskTitle(''); setNewTaskDifficulty('') }}
+   914→                                  className="p-1.5 hover:bg-neutral-200 rounded transition-colors min-h-[28px] min-w-[28px] flex items-center justify-center"
+   915→                                >
+   916→                                  <X className="h-3.5 w-3.5 text-neutral-500" />
+   917→                                </button>
+   918→                              </div>
+   919→                            ) : (
+   920→                              <button
+   921→                                onClick={() => {
+   922→                                  setAddingTaskGoalId(goal.id)
+   923→                                  setNewTaskTitle('')
+   924→                                  setNewTaskDifficulty('')
+   925→                                  setAddTaskError('')
+   926→                                }}
+   927→                                className="flex items-center gap-1.5 text-[11px] text-neutral-600 hover:text-neutral-800 py-2 px-2 rounded-lg hover:bg-neutral-50 transition-colors min-h-[44px]"
+   928→                              >
+   929→                                <Plus className="h-3 w-3" /> Add Task
+   930→                              </button>
+   931→                            )}
+   932→                            {addTaskError && addingTaskGoalId === goal.id && (
+   933→                              <p className="text-[10px] text-red-600 ml-7">{addTaskError}</p>
+   934→                            )}
+   935→                          </div>
+   936→                        </AccordionContent>
+   937→                      </AccordionItem>
+   938→                    )
+   939→                  })}
+   940→                </Accordion>
+   941→
+   942→                {/* Add New Goal inline at bottom of area */}
+   943→                {inlineAddArea === area ? (
+   944→                  <div className="mt-3 p-3 rounded-lg bg-neutral-50 border border-neutral-200">
+   945→                    <div className="space-y-2">
+   946→                      <Input
+   947→                        placeholder="Goal title..."
+   948→                        value={inlineGoalTitle}
+   949→                        onChange={(e) => {
+   950→                          setInlineGoalTitle(e.target.value)
+   951→                          setInlineAddError('')
+   952→                          // Check for similar goal
+   953→                          const normalized = e.target.value.toLowerCase().trim()
+   954→                          if (normalized) {
+   955→                            const similar = (goalsByArea[area] || []).find(
+   956→                              g => g.title.toLowerCase().trim() === normalized
+   957→                            )
+   958→                            if (similar) {
+   959→                              setInlineAddError(`A goal "${similar.title}" already exists in this area.`)
+   960→                            }
+   961→                          }
+   962→                        }}
+   963→                        className="h-8 text-sm border-red-200 focus:border-red-400"
+   964→                        onKeyDown={(e) => {
+   965→                          if (e.key === 'Enter') createInlineGoal(area)
+   966→                          if (e.key === 'Escape') {
+   967→                            setInlineAddArea(null)
+   968→                            setInlineGoalTitle('')
+   969→                            setInlineGoalDescription('')
+   970→                            setInlineAddError('')
+   971→                          }
+   972→                        }}
+   973→                        autoFocus
+   974→                      />
+   975→                      <Textarea
+   976→                        placeholder="Description (optional)"
+   977→                        value={inlineGoalDescription}
+   978→                        onChange={(e) => setInlineGoalDescription(e.target.value)}
+   979→                        className="text-xs border-red-200 focus:border-red-400 resize-none"
+   980→                        rows={2}
+   981→                      />
+   982→                      {inlineAddError && (
+   983→                        <div className="flex items-center gap-1.5 text-[10px] text-rose-700 bg-rose-50 px-2 py-1.5 rounded-md">
+   984→                          <AlertCircle className="h-3 w-3 shrink-0" />
+   985→                          {inlineAddError}
+   986→                        </div>
+   987→                      )}
+   988→                      <div className="flex items-center gap-2">
+   989→                        <Button
+   990→                          onClick={() => createInlineGoal(area)}
+   991→                          disabled={inlineAddSubmitting || !inlineGoalTitle.trim()}
+   992→                          size="sm"
+   993→                          className="bg-neutral-900 hover:bg-neutral-800 text-white gap-1 h-7 text-xs"
+   994→                        >
+   995→                          {inlineAddSubmitting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
+   996→                          Add Goal
+   997→                        </Button>
+   998→                        <Button
+   999→                          variant="ghost"
+  1000→                          size="sm"
+  1001→                          onClick={() => {
+  1002→                            setInlineAddArea(null)
+  1003→                            setInlineGoalTitle('')
+  1004→                            setInlineGoalDescription('')
+  1005→                            setInlineAddError('')
+  1006→                          }}
+  1007→                          className="h-7 text-xs text-neutral-500"
+  1008→                        >
+  1009→                          Cancel
+  1010→                        </Button>
+  1011→                      </div>
+  1012→                    </div>
+  1013→                  </div>
+  1014→                ) : (
+  1015→                  <button
+  1016→                    onClick={() => {
+  1017→                      setInlineAddArea(area)
+  1018→                      setInlineGoalTitle('')
+  1019→                      setInlineGoalDescription('')
+  1020→                      setInlineAddError('')
+  1021→                    }}
+  1022→                    className="mt-3 flex items-center gap-1.5 text-[11px] text-neutral-600 hover:text-neutral-800 py-2 px-3 rounded-lg hover:bg-neutral-50 transition-colors min-h-[44px]"
+  1023→                  >
+  1024→                    <Plus className="h-3 w-3" /> Add New Goal
+  1025→                  </button>
+  1026→                )}
+  1027→              </CardContent>
+  1028→            </Card>
+  1029→          )
+  1030→        })}
+  1031→      </div>
+  1032→
+  1033→      {/* Add Goal Dialog */}
+  1034→      <Dialog open={addGoalOpen} onOpenChange={setAddGoalOpen}>
+  1035→        <DialogContent className="sm:max-w-md">
+  1036→          <DialogHeader>
+  1037→            <DialogTitle className="flex items-center gap-2 text-red-700">
+  1038→              <Target className="h-5 w-5" />
+  1039→              Add New Goal
+  1040→            </DialogTitle>
+  1041→          </DialogHeader>
+  1042→          <div className="space-y-4 py-2">
+  1043→            <div className="space-y-2">
+  1044→              <Label htmlFor="goal-area" className="text-xs font-medium text-neutral-600">Life Area *</Label>
+  1045→              <Select value={newGoal.area} onValueChange={(v) => { setNewGoal({ ...newGoal, area: v }); checkSimilarGoal(newGoal.title, v) }}>
+  1046→                <SelectTrigger id="goal-area" className="border-neutral-200">
+  1047→                  <SelectValue placeholder="Select a life area" />
+  1048→                </SelectTrigger>
+  1049→                <SelectContent>
+  1050→                  {AREA_KEYS.map((key) => (
+  1051→                    <SelectItem key={key} value={key}>
+  1052→                      {getAreaConfig(key).label}
+  1053→                    </SelectItem>
+  1054→                  ))}
+  1055→                </SelectContent>
+  1056→              </Select>
+  1057→            </div>
+  1058→            <div className="space-y-2">
+  1059→              <Label htmlFor="goal-title" className="text-xs font-medium text-neutral-600">Goal Title *</Label>
+  1060→              <Input
+  1061→                id="goal-title"
+  1062→                placeholder="e.g. Launch my online store"
+  1063→                value={newGoal.title}
+  1064→                onChange={(e) => { setNewGoal({ ...newGoal, title: e.target.value }); setAddGoalError(''); checkSimilarGoal(e.target.value, newGoal.area) }}
+  1065→                className="border-neutral-200"
+  1066→                onKeyDown={(e) => { if (e.key === 'Enter') createGoal() }}
+  1067→              />
+  1068→            </div>
+  1069→            {similarGoalWarning && (
+  1070→              <div className="flex items-center gap-1.5 text-[10px] text-rose-700 bg-rose-50 px-2 py-1.5 rounded-md">
+  1071→                <AlertCircle className="h-3 w-3 shrink-0" />
+  1072→                {similarGoalWarning}
+  1073→              </div>
+  1074→            )}
+  1075→            <div className="space-y-2">
+  1076→              <Label htmlFor="goal-desc" className="text-xs font-medium text-neutral-600">Description (optional)</Label>
+  1077→              <Textarea
+  1078→                id="goal-desc"
+  1079→                placeholder="What does achieving this goal look like?"
+  1080→                value={newGoal.description}
+  1081→                onChange={(e) => setNewGoal({ ...newGoal, description: e.target.value })}
+  1082→                className="border-neutral-200 resize-none"
+  1083→                rows={3}
+  1084→              />
+  1085→            </div>
+  1086→            {addGoalError && (
+  1087→              <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 p-2 rounded-lg">
+  1088→                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+  1089→                {addGoalError}
+  1090→              </div>
+  1091→            )}
+  1092→          </div>
+  1093→          <DialogFooter className="gap-2">
+  1094→            <Button
+  1095→              variant="outline"
+  1096→              onClick={() => setAddGoalOpen(false)}
+  1097→              className="border-neutral-200"
+  1098→            >
+  1099→              Cancel
+  1100→            </Button>
+  1101→            <Button
+  1102→              onClick={createGoal}
+  1103→              disabled={addGoalSubmitting}
+  1104→              className="bg-neutral-900 hover:bg-neutral-800 text-white gap-1.5"
+  1105→            >
+  1106→              {addGoalSubmitting ? (
+  1107→                <Loader2 className="h-4 w-4 animate-spin" />
+  1108→              ) : (
+  1109→                <Plus className="h-4 w-4" />
+  1110→              )}
+  1111→              Create Goal
+  1112→            </Button>
+  1113→          </DialogFooter>
+  1114→        </DialogContent>
+  1115→      </Dialog>
+  1116→    </div>
+  1117→  )
+  1118→}
+  1119→

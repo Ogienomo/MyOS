@@ -1,5 +1,5 @@
 import { Heart, Activity, Briefcase, Building2, Wallet, Users, Sprout } from 'lucide-react'
-import { AreaConfig } from '@/components/myos/life-area-page'
+import { AreaConfig } from '@/components/praise-os/life-area-page'
 
 export const AREA_CONFIGS: Record<string, AreaConfig> = {
   faith: {
@@ -12,7 +12,7 @@ export const AREA_CONFIGS: Record<string, AreaConfig> = {
     accentColor: 'bg-red-600',
     description: 'Prayer, scripture, devotion, obedience, spiritual growth',
     idealVision: "Grow deeper in relationship with God through consistent prayer, scripture study, devotion, and obedience. Be a woman of faith whose life reflects God's glory.",
-    promptPrefix: 'You are the Faith Coach for MyOS. Help the user grow spiritually through prayer, scripture, and devotion.',
+    promptPrefix: 'You are the Faith Coach for MyOS. Help you grow spiritually through prayer, scripture, and devotion.',
   },
   health: {
     id: 'health',
@@ -24,7 +24,7 @@ export const AREA_CONFIGS: Record<string, AreaConfig> = {
     accentColor: 'bg-rose-500',
     description: 'Sleep, food, movement, gym, energy, rest',
     idealVision: 'Achieve sustainable health through regular exercise (gym 3x/week), better nutrition, consistent sleep schedule (10PM-5AM), and maintaining energy.',
-    promptPrefix: 'You are the Health Coach for MyOS. Help the user build sustainable health habits.',
+    promptPrefix: 'You are the Health Coach for MyOS. Help build sustainable health habits.',
   },
   career: {
     id: 'career',
@@ -36,7 +36,7 @@ export const AREA_CONFIGS: Record<string, AreaConfig> = {
     accentColor: 'bg-red-700',
     description: 'Applications, skills, CV, interviews, professional growth',
     idealVision: 'Secure an international corporate role (preferably remote/hybrid) in research/strategy. Build professional portfolio, network strategically.',
-    promptPrefix: 'You are the Career Coach for MyOS. Help the user advance professionally.',
+    promptPrefix: 'You are the Career Coach for MyOS. Help advance professionally and achieve career goals.',
   },
   havilah: {
     id: 'havilah',
@@ -48,7 +48,7 @@ export const AREA_CONFIGS: Record<string, AreaConfig> = {
     accentColor: 'bg-rose-600',
     description: 'Havilah Learning Hub, Havilah Writers, revenue, clients, systems, growth',
     idealVision: 'Build Havilah Learning Hub and Havilah Writers into revenue-generating businesses with systems, clients, and growth.',
-    promptPrefix: "You are the Havilah Business Coach for MyOS. Help the user build their business with focus on revenue and systems. Don't confuse activity with progress.",
+    promptPrefix: "You are the Havilah Business Coach for MyOS. Help build businesses with focus on revenue and systems. Apply the Havilah Rule: Don't confuse activity with progress.",
   },
   finances: {
     id: 'finances',
@@ -60,7 +60,7 @@ export const AREA_CONFIGS: Record<string, AreaConfig> = {
     accentColor: 'bg-red-500',
     description: 'Money tracking, savings, giving, budgeting, stewardship',
     idealVision: 'Become financially disciplined and aware. Track every naira. Build savings. Reduce wasteful spending. Align all spending with goals.',
-    promptPrefix: 'You are the Finance Coach for MyOS. Money must always be treated seriously. Track amount, source/category, purpose, whether aligned or wasteful.',
+    promptPrefix: 'You are the Finance Coach for MyOS. Apply the Finance Rule: Money must always be treated seriously. Track amount, source/category, purpose, whether aligned or wasteful.',
   },
   relationships: {
     id: 'relationships',
@@ -72,7 +72,7 @@ export const AREA_CONFIGS: Record<string, AreaConfig> = {
     accentColor: 'bg-rose-400',
     description: 'Family, friends, church community, mentorship',
     idealVision: 'Deepen family bonds, build meaningful friendships, engage in church community, and seek/give mentorship. Be intentional about every relationship.',
-    promptPrefix: 'You are the Relationships Coach for MyOS. Help the user build meaningful relationships.',
+    promptPrefix: 'You are the Relationships Coach for MyOS. Help build and maintain meaningful, intentional relationships.',
   },
   personalGrowth: {
     id: 'personalGrowth',
@@ -84,6 +84,6 @@ export const AREA_CONFIGS: Record<string, AreaConfig> = {
     accentColor: 'bg-red-800',
     description: 'Learning, reading, journaling, reflection, discipline, emotional maturity',
     idealVision: 'Commit to continuous learning - read 24+ books in 2026, journal consistently, develop emotional maturity, and grow in discipline and self-awareness.',
-    promptPrefix: 'You are the Personal Growth Coach for MyOS. Help the user become the best version of themselves.',
+    promptPrefix: 'You are the Personal Growth Coach for MyOS. Become the best version of yourself through learning, reflection, and discipline.',
   },
 }

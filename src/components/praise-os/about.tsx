@@ -8,7 +8,7 @@ import {
   Heart,
   Activity,
   Briefcase,
-  Building2,
+  Gem,
   Wallet,
   Users,
   Sprout,
@@ -30,25 +30,25 @@ const coreValues = [
   { label: 'Growth' },
   { label: 'Excellence' },
   { label: 'Integrity' },
+  { label: 'Discipline' },
   { label: 'Service' },
-  { label: 'Courage' },
   { label: 'Joy' },
 ]
 
 const lifeAreas = [
-  { label: 'Faith', desc: 'Prayer, scripture, devotion, obedience, spiritual growth', icon: <Heart className="h-4 w-4 text-red-500" /> },
+  { label: 'Faith', desc: 'Prayer, scripture, devotion, spiritual growth', icon: <Heart className="h-4 w-4 text-red-500" /> },
   { label: 'Health', desc: 'Sleep, food, movement, gym, energy, rest', icon: <Activity className="h-4 w-4 text-rose-500" /> },
   { label: 'Career', desc: 'Applications, skills, CV, interviews, professional growth', icon: <Briefcase className="h-4 w-4 text-red-600" /> },
-  { label: 'Havilah', desc: 'Havilah Learning Hub, Havilah Writers, revenue, clients, systems', icon: <Building2 className="h-4 w-4 text-rose-600" /> },
+  { label: 'Havilah', desc: 'Business, ventures, revenue, clients, systems', icon: <Gem className="h-4 w-4 text-rose-600" /> },
   { label: 'Finances', desc: 'Money tracking, savings, giving, budgeting, stewardship', icon: <Wallet className="h-4 w-4 text-red-500" /> },
-  { label: 'Relationships', desc: 'Family, friends, church community, mentorship', icon: <Users className="h-4 w-4 text-rose-500" /> },
+  { label: 'Relationships', desc: 'Family, friends, community, mentorship', icon: <Users className="h-4 w-4 text-rose-500" /> },
   { label: 'Personal Growth', desc: 'Learning, reading, journaling, reflection, discipline', icon: <Sprout className="h-4 w-4 text-red-700" /> },
 ]
 
 const cadence = [
-  { label: 'Morning Alignment', time: '5:00 AM', desc: 'Set the day with intention. Schedule, feelings, priorities.', icon: <Sun className="h-4 w-4 text-red-500" /> },
+  { label: 'Morning Alignment', time: 'Configurable', desc: 'Set the day with intention. Schedule, feelings, priorities.', icon: <Sun className="h-4 w-4 text-red-500" /> },
   { label: 'Midday Correction', time: '12:00 PM', desc: 'Reset focus. Completed, blockers, what\'s slipping.', icon: <Clock className="h-4 w-4 text-red-600" /> },
-  { label: 'Evening Review', time: '8:30 PM', desc: 'Close the day with honesty. Wins, lessons, drift.', icon: <Moon className="h-4 w-4 text-rose-500" /> },
+  { label: 'Evening Review', time: 'Configurable', desc: 'Close the day with honesty. Wins, lessons, drift.', icon: <Moon className="h-4 w-4 text-rose-500" /> },
   { label: 'Friday Strategic Review', time: '4:30 PM', desc: 'Serious weekly review across all life areas.', icon: <TrendingUp className="h-4 w-4 text-red-600" /> },
   { label: 'Sunday Planning', time: '6:00 PM', desc: 'Review upcoming week. Priorities, deadlines, focus blocks.', icon: <Compass className="h-4 w-4 text-rose-600" /> },
 ]
@@ -77,35 +77,31 @@ export function About() {
         <div className="absolute top-0 right-0 w-64 h-64 bg-red-500/10 rounded-full blur-3xl" />
         <div className="absolute bottom-0 left-0 w-48 h-48 bg-red-400/5 rounded-full blur-2xl" />
 
-        <div className="relative z-10 flex flex-col md:flex-row items-center gap-8">
-          {/* Logo */}
+        <div className="relative z-10 flex flex-col items-center text-center">
           <motion.div
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
-            className="shrink-0"
+            className="shrink-0 mb-6"
           >
-            <div className="w-32 h-32 md:w-40 md:h-40 rounded-full flex items-center justify-center border-4 border-red-500/30 shadow-xl shadow-red-500/10 bg-gradient-to-br from-red-600/20 to-red-900/30">
-              <Sparkles className="h-16 w-16 md:h-20 md:w-20 text-red-400" />
+            <div className="w-24 h-24 rounded-3xl overflow-hidden border-4 border-red-500/30 shadow-xl shadow-red-500/10 bg-red-600/15 flex items-center justify-center">
+              <Sparkles className="h-12 w-12 text-red-400" />
             </div>
           </motion.div>
 
-          {/* Text */}
           <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
-            className="text-center md:text-left"
           >
-            <div className="flex items-center justify-center md:justify-start gap-2 mb-2">
+            <div className="flex items-center justify-center gap-2 mb-2">
               <Sparkles className="h-5 w-5 text-red-400" />
-              <span className="text-red-400 text-xs font-semibold uppercase tracking-wider">Your Life Operating System</span>
+              <span className="text-red-400 text-xs font-semibold uppercase tracking-wider">Your Personal OS</span>
             </div>
-            <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">MyOS</h1>
+            <h1 className="text-3xl md:text-4xl font-bold text-white mb-3">Your Life Operating System</h1>
             <p className="text-neutral-300 text-sm md:text-base max-w-lg leading-relaxed">
-              Your personal chief of staff, accountability partner, and strategic advisor. 
-              Built to help you make thousands of small decisions that align with your deepest values until the life you want 
-              becomes the life you are actually living.
+              A person of purpose, discipline, and vision. Built to help you make thousands of small decisions
+              that align with your deepest values until the life you want becomes the life you are actually living.
             </p>
           </motion.div>
         </div>
@@ -146,13 +142,13 @@ export function About() {
               <h2 className="text-lg font-medium text-neutral-800">The MyOS Mission</h2>
             </div>
             <p className="text-sm text-neutral-600 leading-relaxed mb-4">
-              This is your personal operating system — your chief of staff, accountability partner, and strategic advisor. 
-              Built to help you make thousands of small decisions that align with your deepest values until the life you want 
+              This is your personal operating system — your chief of staff, accountability partner, and strategic advisor.
+              Built to help you make thousands of small decisions that align with your deepest values until the life you want
               becomes the life you are actually living.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {[
-                { icon: <Target className="h-5 w-5 text-red-500" />, label: 'Accountability Partner', desc: 'Keeps the user honest and aligned' },
+                { icon: <Target className="h-5 w-5 text-red-500" />, label: 'Accountability Partner', desc: 'Keeps you honest and aligned' },
                 { icon: <BarChart3 className="h-5 w-5 text-red-500" />, label: 'Strategic Advisor', desc: 'Analyzes patterns and surfaces insights' },
                 { icon: <Zap className="h-5 w-5 text-red-500" />, label: 'Chief of Staff', desc: 'Manages your daily operating cadence' },
               ].map((item) => (

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getZAI } from '@/lib/ai'
 
-const SMART_SYNC_SYSTEM_PROMPT = `You are a data extraction assistant for MyOS, a life operating system for User.
+const SMART_SYNC_SYSTEM_PROMPT = `You are a data extraction assistant for MyOS, a personal life operating system.
 
 Your job is to analyze the user's message and extract SEVEN types of structured information:
 

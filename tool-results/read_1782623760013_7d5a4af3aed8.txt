@@ -1,0 +1,1032 @@
+     1→@import "tailwindcss";
+     2→@import "tw-animate-css";
+     3→
+     4→@custom-variant dark (&:is(.dark *));
+     5→
+     6→@theme inline {
+     7→  --color-background: var(--background);
+     8→  --color-foreground: var(--foreground);
+     9→  --font-sans: var(--font-geist-sans);
+    10→  --font-mono: var(--font-geist-mono);
+    11→  --color-sidebar-ring: var(--sidebar-ring);
+    12→  --color-sidebar-border: var(--sidebar-border);
+    13→  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    14→  --color-sidebar-accent: var(--sidebar-accent);
+    15→  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    16→  --color-sidebar-primary: var(--sidebar-primary);
+    17→  --color-sidebar-foreground: var(--sidebar-foreground);
+    18→  --color-sidebar: var(--sidebar);
+    19→  --color-chart-5: var(--chart-5);
+    20→  --color-chart-4: var(--chart-4);
+    21→  --color-chart-3: var(--chart-3);
+    22→  --color-chart-2: var(--chart-2);
+    23→  --color-chart-1: var(--chart-1);
+    24→  --color-ring: var(--ring);
+    25→  --color-input: var(--input);
+    26→  --color-border: var(--border);
+    27→  --color-destructive: var(--destructive);
+    28→  --color-accent-foreground: var(--accent-foreground);
+    29→  --color-accent: var(--accent);
+    30→  --color-muted-foreground: var(--muted-foreground);
+    31→  --color-muted: var(--muted);
+    32→  --color-secondary-foreground: var(--secondary-foreground);
+    33→  --color-secondary: var(--secondary);
+    34→  --color-primary-foreground: var(--primary-foreground);
+    35→  --color-primary: var(--primary);
+    36→  --color-popover-foreground: var(--popover-foreground);
+    37→  --color-popover: var(--popover);
+    38→  --color-card-foreground: var(--card-foreground);
+    39→  --color-card: var(--card);
+    40→  --radius-sm: calc(var(--radius) - 4px);
+    41→  --radius-md: calc(var(--radius) - 2px);
+    42→  --radius-lg: var(--radius);
+    43→  --radius-xl: calc(var(--radius) + 4px);
+    44→}
+    45→
+    46→:root {
+    47→  --radius: 0.625rem;
+    48→  --chat-bg: #fdf6f3;
+    49→  --background: oklch(1 0 0);
+    50→  --foreground: oklch(0.09 0 0);
+    51→  --card: oklch(1 0 0);
+    52→  --card-foreground: oklch(0.09 0 0);
+    53→  --popover: oklch(1 0 0);
+    54→  --popover-foreground: oklch(0.09 0 0);
+    55→  --primary: oklch(0.577 0.245 27.325);
+    56→  --primary-foreground: oklch(0.985 0 0);
+    57→  --secondary: oklch(0.97 0 0);
+    58→  --secondary-foreground: oklch(0.15 0 0);
+    59→  --muted: oklch(0.97 0 0);
+    60→  --muted-foreground: oklch(0.5 0 0);
+    61→  --accent: oklch(0.97 0.01 27);
+    62→  --accent-foreground: oklch(0.15 0 0);
+    63→  --destructive: oklch(0.577 0.245 27.325);
+    64→  --border: oklch(0.91 0 0);
+    65→  --input: oklch(0.91 0 0);
+    66→  --ring: oklch(0.577 0.245 27.325);
+    67→  --chart-1: oklch(0.577 0.245 27.325);
+    68→  --chart-2: oklch(0.637 0.237 25.331);
+    69→  --chart-3: oklch(0.704 0.191 22.216);
+    70→  --chart-4: oklch(0.55 0.22 30);
+    71→  --chart-5: oklch(0.45 0.2 20);
+    72→  --sidebar: oklch(0.09 0 0);
+    73→  --sidebar-foreground: oklch(0.985 0 0);
+    74→  --sidebar-primary: oklch(0.577 0.245 27.325);
+    75→  --sidebar-primary-foreground: oklch(0.985 0 0);
+    76→  --sidebar-accent: oklch(0.15 0 0);
+    77→  --sidebar-accent-foreground: oklch(0.985 0 0);
+    78→  --sidebar-border: oklch(1 0 0 / 10%);
+    79→  --sidebar-ring: oklch(0.577 0.245 27.325);
+    80→}
+    81→
+    82→.dark {
+    83→  --chat-bg: oklch(0.09 0 0);
+    84→  --background: oklch(0.09 0 0);
+    85→  --foreground: oklch(0.985 0 0);
+    86→  --card: oklch(0.15 0 0);
+    87→  --card-foreground: oklch(0.985 0 0);
+    88→  --popover: oklch(0.15 0 0);
+    89→  --popover-foreground: oklch(0.985 0 0);
+    90→  --primary: oklch(0.637 0.237 25.331);
+    91→  --primary-foreground: oklch(0.09 0 0);
+    92→  --secondary: oklch(0.2 0 0);
+    93→  --secondary-foreground: oklch(0.985 0 0);
+    94→  --muted: oklch(0.2 0 0);
+    95→  --muted-foreground: oklch(0.7 0 0);
+    96→  --accent: oklch(0.2 0.01 27);
+    97→  --accent-foreground: oklch(0.985 0 0);
+    98→  --destructive: oklch(0.704 0.191 22.216);
+    99→  --border: oklch(1 0 0 / 10%);
+   100→  --input: oklch(1 0 0 / 15%);
+   101→  --ring: oklch(0.637 0.237 25.331);
+   102→  --chart-1: oklch(0.637 0.237 25.331);
+   103→  --chart-2: oklch(0.704 0.191 22.216);
+   104→  --chart-3: oklch(0.577 0.245 27.325);
+   105→  --chart-4: oklch(0.55 0.22 30);
+   106→  --chart-5: oklch(0.45 0.2 20);
+   107→  --sidebar: oklch(0.09 0 0);
+   108→  --sidebar-foreground: oklch(0.985 0 0);
+   109→  --sidebar-primary: oklch(0.637 0.237 25.331);
+   110→  --sidebar-primary-foreground: oklch(0.985 0 0);
+   111→  --sidebar-accent: oklch(0.15 0 0);
+   112→  --sidebar-accent-foreground: oklch(0.985 0 0);
+   113→  --sidebar-border: oklch(1 0 0 / 10%);
+   114→  --sidebar-ring: oklch(0.637 0.237 25.331);
+   115→}
+   116→
+   117→@layer base {
+   118→  * {
+   119→    @apply border-border outline-ring/50;
+   120→  }
+   121→  body {
+   122→    @apply bg-background text-foreground;
+   123→  }
+   124→  /* Allow text selection and long-press copy everywhere */
+   125→  body,
+   126→  main,
+   127→  section,
+   128→  article,
+   129→  div,
+   130→  .coach-response,
+   131→  .coach-response *,
+   132→  p, span, li, td, th, blockquote, pre, code,
+   133→  h1, h2, h3, h4, h5, h6,
+   134→  a, label, figcaption,
+   135→  [data-selectable] {
+   136→    -webkit-user-select: text !important;
+   137→    user-select: text !important;
+   138→    -webkit-touch-callout: default !important;
+   139→  }
+   140→  /* Only inputs and interactive controls should not be selectable */
+   141→  input:not([type="text"]):not([type="search"]):not([type="url"]):not([type="tel"]),
+   142→  textarea,
+   143→  button,
+   144→  [role="button"],
+   145→  [role="tab"],
+   146→  [role="slider"],
+   147→  .touch-none {
+   148→    -webkit-user-select: none !important;
+   149→    user-select: none !important;
+   150→  }
+   151→}
+   152→
+   153→/* Custom scrollbar */
+   154→::-webkit-scrollbar {
+   155→  width: 6px;
+   156→  height: 6px;
+   157→}
+   158→
+   159→::-webkit-scrollbar-track {
+   160→  background: transparent;
+   161→}
+   162→
+   163→::-webkit-scrollbar-thumb {
+   164→  background: oklch(0.7 0 0 / 30%);
+   165→  border-radius: 999px;
+   166→}
+   167→
+   168→::-webkit-scrollbar-thumb:hover {
+   169→  background: oklch(0.5 0 0 / 50%);
+   170→}
+   171→
+   172→/* Safe area for mobile bottom nav */
+   173→.safe-area-pb {
+   174→  padding-bottom: env(safe-area-inset-bottom, 0px);
+   175→}
+   176→
+   177→/* Hide scrollbar utility for horizontal scroll areas */
+   178→.scrollbar-hide {
+   179→  -ms-overflow-style: none;
+   180→  scrollbar-width: none;
+   181→}
+   182→
+   183→.scrollbar-hide::-webkit-scrollbar {
+   184→  display: none;
+   185→}
+   186→
+   187→/* Pulsing red glow for urgency */
+   188→@keyframes pulse-red {
+   189→  0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.2); }
+   190→  50% { box-shadow: 0 0 0 4px rgba(220, 38, 38, 0); }
+   191→}
+   192→
+   193→.pulse-red {
+   194→  animation: pulse-red 10s infinite;
+   195→}
+   196→
+   197→/* Shake animation for insistence */
+   198→@keyframes shake {
+   199→  0%, 100% { transform: translateX(0); }
+   200→  10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+   201→  20%, 40%, 60%, 80% { transform: translateX(4px); }
+   202→}
+   203→
+   204→.animate-shake {
+   205→  animation: shake 0.5s ease-in-out;
+   206→}
+   207→
+   208→/* Pulsing red border for empty required fields */
+   209→@keyframes pulse-border-red {
+   210→  0%, 100% { border-color: rgba(220, 38, 38, 0.7); box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.15); }
+   211→  50% { border-color: rgba(220, 38, 38, 0.9); box-shadow: 0 0 4px 1px rgba(220, 38, 38, 0.12); }
+   212→}
+   213→
+   214→.pulse-border-red {
+   215→  animation: pulse-border-red 7s ease-in-out infinite;
+   216→}
+   217→
+   218→/* Streak fire glow */
+   219→@keyframes fire-glow {
+   220→  0%, 100% { text-shadow: 0 0 4px rgba(239, 68, 68, 0.3); }
+   221→  50% { text-shadow: 0 0 8px rgba(239, 68, 68, 0.45), 0 0 12px rgba(239, 68, 68, 0.2); }
+   222→}
+   223→
+   224→.fire-glow {
+   225→  animation: fire-glow 8s ease-in-out infinite;
+   226→}
+   227→
+   228→/* Nudge banner: yellow warning (30 min overdue) */
+   229→@keyframes nudge-yellow {
+   230→  0%, 100% { opacity: 1; }
+   231→  50% { opacity: 0.9; }
+   232→}
+   233→
+   234→.nudge-warning {
+   235→  animation: nudge-yellow 10s ease-in-out infinite;
+   236→  background: linear-gradient(135deg, #fef3c7, #fde68a);
+   237→  border-color: #f59e0b;
+   238→  color: #92400e;
+   239→}
+   240→
+   241→/* Nudge banner: orange warning (1 hr overdue) */
+   242→@keyframes nudge-orange {
+   243→  0%, 100% { transform: scale(1); opacity: 1; }
+   244→  50% { transform: scale(1.002); opacity: 0.95; }
+   245→}
+   246→
+   247→.nudge-urgent {
+   248→  animation: nudge-orange 8s ease-in-out infinite;
+   249→  background: linear-gradient(135deg, #fed7aa, #fdba74);
+   250→  border-color: #ea580c;
+   251→  color: #9a3412;
+   252→}
+   253→
+   254→/* Nudge banner: red critical (2+ hrs overdue) */
+   255→@keyframes nudge-critical {
+   256→  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.2); }
+   257→  50% { transform: scale(1.003); box-shadow: 0 0 10px 2px rgba(220, 38, 38, 0.15); }
+   258→}
+   259→
+   260→.nudge-critical {
+   261→  animation: nudge-critical 6s ease-in-out infinite;
+   262→  background: linear-gradient(135deg, #fecaca, #fca5a5);
+   263→  border-color: #dc2626;
+   264→  color: #7f1d1d;
+   265→}
+   266→
+   267→/* Flame flicker animation for streak cards */
+   268→@keyframes flame-flicker {
+   269→  0%, 100% { transform: scaleY(1) scaleX(1); opacity: 1; }
+   270→  25% { transform: scaleY(1.03) scaleX(0.98); opacity: 0.95; }
+   271→  50% { transform: scaleY(0.98) scaleX(1.02); opacity: 1; }
+   272→  75% { transform: scaleY(1.02) scaleX(0.99); opacity: 0.97; }
+   273→}
+   274→
+   275→.flame-flicker {
+   276→  animation: flame-flicker 7s ease-in-out infinite;
+   277→  transform-origin: bottom center;
+   278→}
+   279→
+   280→/* Countdown timer pulse */
+   281→@keyframes countdown-pulse {
+   282→  0%, 100% { opacity: 1; }
+   283→  50% { opacity: 0.85; }
+   284→}
+   285→
+   286→.countdown-urgent {
+   287→  animation: countdown-pulse 6s ease-in-out infinite;
+   288→}
+   289→
+   290→/* AI Coach Response Styling */
+   291→
+   292→/* Container: word wrap, overflow, first/last child margins */
+   293→.coach-response {
+   294→  word-wrap: break-word;
+   295→  overflow-wrap: break-word;
+   296→}
+   297→
+   298→.coach-response > *:first-child {
+   299→  margin-top: 0;
+   300→}
+   301→
+   302→.coach-response > *:last-child {
+   303→  margin-bottom: 0;
+   304→}
+   305→
+   306→/* Headings with improved spacing */
+   307→.coach-response h2 {
+   308→  font-size: 1rem;
+   309→  font-weight: 700;
+   310→  color: #b91c1c;
+   311→  margin-top: 1.25rem;
+   312→  margin-bottom: 0.75rem;
+   313→  padding-bottom: 0.25rem;
+   314→  border-bottom: 1px solid #fecaca;
+   315→}
+   316→
+   317→.coach-response h3 {
+   318→  font-size: 0.9rem;
+   319→  font-weight: 600;
+   320→  color: #991b1b;
+   321→  margin-top: 1rem;
+   322→  margin-bottom: 0.5rem;
+   323→}
+   324→
+   325→/* Emoji heading spacing */
+   326→.coach-response h2::before,
+   327→.coach-response h3::before {
+   328→  margin-right: 0.25em;
+   329→}
+   330→
+   331→/* Paragraphs with improved spacing */
+   332→.coach-response p {
+   333→  margin-bottom: 1rem;
+   334→  line-height: 1.75;
+   335→}
+   336→
+   337→.coach-response p:first-child {
+   338→  margin-top: 0;
+   339→}
+   340→
+   341→/* Unordered list: custom red bullet styling */
+   342→.coach-response ul {
+   343→  list-style-type: none;
+   344→  padding-left: 0;
+   345→  margin-bottom: 0.75rem;
+   346→}
+   347→
+   348→.coach-response ul li {
+   349→  position: relative;
+   350→  padding-left: 1.25rem;
+   351→  margin-bottom: 0.25rem;
+   352→  line-height: 1.6;
+   353→}
+   354→
+   355→.coach-response ul li::before {
+   356→  content: '•';
+   357→  color: #dc2626;
+   358→  font-weight: bold;
+   359→  position: absolute;
+   360→  left: 0;
+   361→}
+   362→
+   363→/* Ordered list: red numbered markers */
+   364→.coach-response ol {
+   365→  margin-bottom: 0.75rem;
+   366→  padding-left: 1.25rem;
+   367→}
+   368→
+   369→.coach-response ol li {
+   370→  margin-bottom: 0.25rem;
+   371→  line-height: 1.6;
+   372→}
+   373→
+   374→.coach-response ol li::marker {
+   375→  color: #dc2626;
+   376→  font-weight: 600;
+   377→}
+   378→
+   379→/* Strong text */
+   380→.coach-response strong {
+   381→  color: #991b1b;
+   382→  font-weight: 600;
+   383→}
+   384→
+   385→/* Blockquote: key insight box styling */
+   386→.coach-response blockquote {
+   387→  border-left: 3px solid #dc2626;
+   388→  padding: 0.5rem 0.75rem;
+   389→  font-style: italic;
+   390→  color: #525252;
+   391→  margin: 1rem 0;
+   392→  background: linear-gradient(135deg, #fef2f2, #fff);
+   393→  border-radius: 0 0.375rem 0.375rem 0;
+   394→}
+   395→
+   396→.coach-response blockquote p {
+   397→  margin-bottom: 0;
+   398→}
+   399→
+   400→/* Horizontal rule: elegant gradient */
+   401→.coach-response hr {
+   402→  border: none;
+   403→  height: 1px;
+   404→  background: linear-gradient(to right, transparent, #fecaca, transparent);
+   405→  margin: 1.25rem 0;
+   406→}
+   407→
+   408→/* Inline code with border */
+   409→.coach-response code {
+   410→  background: #fef2f2;
+   411→  padding: 0.125rem 0.375rem;
+   412→  border-radius: 0.25rem;
+   413→  font-size: 0.85em;
+   414→  color: #991b1b;
+   415→  border: 1px solid #fecaca;
+   416→}
+   417→
+   418→/* Pre/code block styling */
+   419→.coach-response pre {
+   420→  background: #1a1a1a;
+   421→  color: #e5e5e5;
+   422→  padding: 0.75rem 1rem;
+   423→  border-radius: 0.5rem;
+   424→  overflow-x: auto;
+   425→  margin: 0.75rem 0;
+   426→  font-size: 0.8em;
+   427→}
+   428→
+   429→.coach-response pre code {
+   430→  background: none;
+   431→  border: none;
+   432→  color: inherit;
+   433→  padding: 0;
+   434→}
+   435→
+   436→/* Footnote references (superscript) */
+   437→.coach-response sup {
+   438→  font-size: 0.7em;
+   439→  color: #dc2626;
+   440→  vertical-align: super;
+   441→  line-height: 0;
+   442→}
+   443→
+   444→.coach-response sup a {
+   445→  color: #dc2626;
+   446→  text-decoration: none;
+   447→  font-weight: 600;
+   448→}
+   449→
+   450→.coach-response sup a:hover {
+   451→  text-decoration: underline;
+   452→}
+   453→
+   454→/* Footnote definitions at bottom of response */
+   455→.coach-response .footnotes {
+   456→  font-size: 0.75rem;
+   457→  color: #737373;
+   458→  border-top: 1px solid #fecaca;
+   459→  margin-top: 1rem;
+   460→  padding-top: 0.5rem;
+   461→}
+   462→
+   463→.coach-response .footnotes ol {
+   464→  padding-left: 1rem;
+   465→}
+   466→
+   467→.coach-response .footnotes li {
+   468→  margin-bottom: 0.125rem;
+   469→}
+   470→
+   471→.coach-response .footnotes a {
+   472→  color: #dc2626;
+   473→}
+   474→
+   475→/* Table styling for tabular data */
+   476→.coach-response table {
+   477→  width: 100%;
+   478→  border-collapse: collapse;
+   479→  margin: 0.75rem 0;
+   480→  font-size: 0.85em;
+   481→}
+   482→
+   483→.coach-response th {
+   484→  background: #fef2f2;
+   485→  padding: 0.5rem;
+   486→  text-align: left;
+   487→  font-weight: 600;
+   488→  color: #991b1b;
+   489→  border-bottom: 2px solid #fecaca;
+   490→}
+   491→
+   492→.coach-response td {
+   493→  padding: 0.5rem;
+   494→  border-bottom: 1px solid #f5f5f5;
+   495→}
+   496→
+   497→.coach-response tr:hover td {
+   498→  background: #fef2f2;
+   499→}
+   500→
+   501→/* ===== Global Animations & Utilities ===== */
+   502→
+   503→/* Smooth page transitions */
+   504→@keyframes fadeIn {
+   505→  from { opacity: 0; transform: translateY(8px); }
+   506→  to { opacity: 1; transform: translateY(0); }
+   507→}
+   508→
+   509→@keyframes slideUp {
+   510→  from { opacity: 0; transform: translateY(20px); }
+   511→  to { opacity: 1; transform: translateY(0); }
+   512→}
+   513→
+   514→@keyframes scaleIn {
+   515→  from { opacity: 0; transform: scale(0.95); }
+   516→  to { opacity: 1; transform: scale(1); }
+   517→}
+   518→
+   519→@keyframes shimmer {
+   520→  0% { background-position: -200% 0; }
+   521→  100% { background-position: 200% 0; }
+   522→}
+   523→
+   524→/* Apply page transition */
+   525→main > div > div {
+   526→  animation: fadeIn 0.3s ease-out;
+   527→}
+   528→
+   529→/* Card hover effects */
+   530→.hover-lift {
+   531→  transition: transform 0.2s ease, box-shadow 0.2s ease;
+   532→}
+   533→.hover-lift:hover {
+   534→  transform: translateY(-2px);
+   535→  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+   536→}
+   537→
+   538→/* Skeleton loading shimmer */
+   539→.skeleton-shimmer {
+   540→  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+   541→  background-size: 200% 100%;
+   542→  animation: shimmer 8s infinite;
+   543→}
+   544→
+   545→.dark .skeleton-shimmer {
+   546→  background: linear-gradient(90deg, #2a2a2a 25%, #333 50%, #2a2a2a 75%);
+   547→  background-size: 200% 100%;
+   548→  animation: shimmer 8s infinite;
+   549→}
+   550→
+   551→/* Smooth scrolling for chat */
+   552→.scroll-smooth-behavior {
+   553→  scroll-behavior: smooth;
+   554→}
+   555→
+   556→/* Better mobile scrollbar */
+   557→.custom-scrollbar::-webkit-scrollbar {
+   558→  width: 4px;
+   559→}
+   560→.custom-scrollbar::-webkit-scrollbar-track {
+   561→  background: transparent;
+   562→}
+   563→.custom-scrollbar::-webkit-scrollbar-thumb {
+   564→  background: rgba(0,0,0,0.15);
+   565→  border-radius: 2px;
+   566→}
+   567→.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+   568→  background: rgba(0,0,0,0.25);
+   569→}
+   570→
+   571→/* Tap feedback for mobile */
+   572→@media (hover: none) {
+   573→  .tap-feedback:active {
+   574→    transform: scale(0.97);
+   575→    opacity: 0.8;
+   576→    transition: transform 0.1s, opacity 0.1s;
+   577→  }
+   578→}
+   579→
+   580→/* ===== Vibrant Animations & Utilities ===== */
+   581→
+   582→/* Gentle floating up-down bob */
+   583→@keyframes float {
+   584→  0%, 100% { transform: translateY(0); }
+   585→  50% { transform: translateY(-4px); }
+   586→}
+   587→
+   588→.animate-float {
+   589→  animation: float 12s ease-in-out infinite;
+   590→}
+   591→
+   592→/* Glowing pulse for cards */
+   593→@keyframes pulse-glow {
+   594→  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.15); }
+   595→  50% { box-shadow: 0 0 12px 2px rgba(239, 68, 68, 0.08); }
+   596→}
+   597→
+   598→/* Gradient color shifting */
+   599→@keyframes gradient-shift {
+   600→  0% { background-position: 0% 50%; }
+   601→  50% { background-position: 100% 50%; }
+   602→  100% { background-position: 0% 50%; }
+   603→}
+   604→
+   605→/* Bouncy entrance */
+   606→@keyframes bounce-in {
+   607→  0% { transform: scale(0.92); opacity: 0; }
+   608→  100% { transform: scale(1); opacity: 1; }
+   609→}
+   610→
+   611→.animate-bounce-in {
+   612→  animation: bounce-in 0.8s ease-out;
+   613→}
+   614→
+   615→/* Twinkling sparkle effect */
+   616→@keyframes sparkle {
+   617→  0%, 100% { opacity: 1; transform: scale(1); }
+   618→  50% { opacity: 0.9; transform: scale(0.98); }
+   619→}
+   620→
+   621→.animate-sparkle {
+   622→  animation: sparkle 8s ease-in-out infinite;
+   623→}
+   624→
+   625→/* Waving hand emoji effect */
+   626→@keyframes wave {
+   627→  0% { transform: rotate(0deg); }
+   628→  10% { transform: rotate(8deg); }
+   629→  20% { transform: rotate(-5deg); }
+   630→  30% { transform: rotate(8deg); }
+   631→  40% { transform: rotate(-3deg); }
+   632→  50% { transform: rotate(6deg); }
+   633→  60% { transform: rotate(0deg); }
+   634→  100% { transform: rotate(0deg); }
+   635→}
+   636→
+   637→.animate-wave {
+   638→  animation: wave 12s ease-in-out infinite;
+   639→  display: inline-block;
+   640→  transform-origin: 70% 70%;
+   641→}
+   642→
+   643→/* Vibrant gradient background */
+   644→.gradient-vibrant {
+   645→  background: linear-gradient(-45deg, #ef4444, #f97316, #eab308, #ef4444);
+   646→  background-size: 300% 300%;
+   647→  animation: gradient-shift 15s ease infinite;
+   648→}
+   649→
+   650→/* Red glow shadow */
+   651→.glow-red {
+   652→  box-shadow: 0 0 15px 3px rgba(239, 68, 68, 0.35);
+   653→}
+   654→
+   655→/* ===== Vibrant Enhancement Animations ===== */
+   656→
+   657→/* Confetti burst for celebrations */
+   658→@keyframes confetti-burst {
+   659→  0% { transform: translateY(0) scale(1); opacity: 1; }
+   660→  100% { transform: translateY(-50px) scale(0.7); opacity: 0; }
+   661→}
+   662→
+   663→.animate-confetti {
+   664→  animation: confetti-burst 5s ease-out forwards;
+   665→}
+   666→
+   667→/* Gradient border animation */
+   668→@keyframes gradient-border {
+   669→  0% { border-color: #ef4444; }
+   670→  25% { border-color: #f59e0b; }
+   671→  50% { border-color: #22c55e; }
+   672→  75% { border-color: #8b5cf6; }
+   673→  100% { border-color: #ef4444; }
+   674→}
+   675→
+   676→.animate-gradient-border {
+   677→  animation: gradient-border 12s ease infinite;
+   678→}
+   679→
+   680→/* Shimmer shine effect for buttons */
+   681→@keyframes shimmer-shine {
+   682→  0% { background-position: -200% 0; }
+   683→  100% { background-position: 200% 0; }
+   684→}
+   685→
+   686→.shimmer-btn {
+   687→  background-size: 200% 100%;
+   688→  animation: shimmer-shine 10s linear infinite;
+   689→}
+   690→
+   691→/* Floating particles */
+   692→@keyframes float-particle {
+   693→  0%, 100% { transform: translateY(0) rotate(0deg); opacity: 0.8; }
+   694→  50% { transform: translateY(-6px) rotate(90deg); opacity: 1; }
+   695→}
+   696→
+   697→.animate-float-particle {
+   698→  animation: float-particle 15s ease-in-out infinite;
+   699→}
+   700→
+   701→/* Scale bounce for numbers */
+   702→@keyframes scale-bounce {
+   703→  0% { transform: scale(1); }
+   704→  30% { transform: scale(1.3); }
+   705→  50% { transform: scale(0.9); }
+   706→  70% { transform: scale(1.1); }
+   707→  100% { transform: scale(1); }
+   708→}
+   709→
+   710→.animate-scale-bounce {
+   711→  animation: scale-bounce 0.5s ease-out;
+   712→}
+   713→
+   714→/* Pulse glow for important elements */
+   715→@keyframes pulse-glow-vibrant {
+   716→  0%, 100% { box-shadow: 0 0 3px 0 rgba(239, 68, 68, 0.15); }
+   717→  50% { box-shadow: 0 0 8px 2px rgba(239, 68, 68, 0.25); }
+   718→}
+   719→
+   720→.pulse-glow-vibrant {
+   721→  animation: pulse-glow-vibrant 10s ease-in-out infinite;
+   722→}
+   723→
+   724→/* Rainbow glow for critical urgency */
+   725→@keyframes rainbow-glow {
+   726→  0% { box-shadow: 0 0 5px rgba(239, 68, 68, 0.25); border-color: #ef4444; }
+   727→  33% { box-shadow: 0 0 5px rgba(245, 158, 11, 0.25); border-color: #f59e0b; }
+   728→  66% { box-shadow: 0 0 5px rgba(34, 197, 94, 0.25); border-color: #22c55e; }
+   729→  100% { box-shadow: 0 0 5px rgba(239, 68, 68, 0.25); border-color: #ef4444; }
+   730→}
+   731→
+   732→.rainbow-glow {
+   733→  animation: rainbow-glow 12s ease-in-out infinite;
+   734→}
+   735→
+   736→/* Animated gradient background shift */
+   737→@keyframes gradient-bg-shift {
+   738→  0% { background-position: 0% 50%; }
+   739→  50% { background-position: 100% 50%; }
+   740→  100% { background-position: 0% 50%; }
+   741→}
+   742→
+   743→.animate-gradient-bg {
+   744→  background-size: 200% 200%;
+   745→  animation: gradient-bg-shift 20s ease infinite;
+   746→}
+   747→
+   748→/* Bounce emoji on hover */
+   749→@keyframes emoji-bounce {
+   750→  0%, 100% { transform: translateY(0); }
+   751→  25% { transform: translateY(-4px); }
+   752→  75% { transform: translateY(2px); }
+   753→}
+   754→
+   755→.animate-emoji-bounce:hover .emoji-icon,
+   756→.emoji-bounce-hover:hover {
+   757→  animation: emoji-bounce 0.4s ease-in-out;
+   758→}
+   759→
+   760→/* Pulse glow red for high scores */
+   761→@keyframes pulse-glow-red {
+   762→  0%, 100% { box-shadow: 0 0 3px 0 rgba(239, 68, 68, 0.15); }
+   763→  50% { box-shadow: 0 0 8px 2px rgba(239, 68, 68, 0.25); }
+   764→}
+   765→
+   766→.pulse-glow-red {
+   767→  animation: pulse-glow-red 10s ease-in-out infinite;
+   768→}
+   769→
+   770→/* Sparkle particle effect for streaks */
+   771→@keyframes sparkle-particle {
+   772→  0% { opacity: 0.3; transform: scale(0.95) rotate(0deg); }
+   773→  50% { opacity: 0.7; transform: scale(1) rotate(90deg); }
+   774→  100% { opacity: 0.3; transform: scale(0.95) rotate(180deg); }
+   775→}
+   776→
+   777→.sparkle-particle {
+   778→  animation: sparkle-particle 10s ease-in-out infinite;
+   779→}
+   780→
+   781→/* Shimmer overlay for new AI responses */
+   782→@keyframes shimmer-overlay {
+   783→  0% { background-position: -100% 0; }
+   784→  100% { background-position: 200% 0; }
+   785→}
+   786→
+   787→.shimmer-overlay {
+   788→  background: linear-gradient(90deg, transparent 0%, rgba(239, 68, 68, 0.06) 50%, transparent 100%);
+   789→  background-size: 200% 100%;
+   790→  animation: shimmer-overlay 2s ease-out forwards;
+   791→}
+   792→
+   793→/* Gradient border with animated shift */
+   794→@keyframes border-gradient-shift {
+   795→  0% { border-image-source: linear-gradient(0deg, #ef4444, #f59e0b); }
+   796→  33% { border-image-source: linear-gradient(120deg, #f59e0b, #22c55e); }
+   797→  66% { border-image-source: linear-gradient(240deg, #22c55e, #8b5cf6); }
+   798→  100% { border-image-source: linear-gradient(360deg, #8b5cf6, #ef4444); }
+   799→}
+   800→
+   801→.animate-border-gradient {
+   802→  border-width: 2px;
+   803→  border-style: solid;
+   804→  border-image-slice: 1;
+   805→  animation: border-gradient-shift 12s ease infinite;
+   806→}
+   807→
+   808→/* Gentle pulse for save button */
+   809→@keyframes pulse-save-glow {
+   810→  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.2); }
+   811→  50% { box-shadow: 0 0 8px 2px rgba(239, 68, 68, 0.15); }
+   812→}
+   813→
+   814→.pulse-save-glow {
+   815→  animation: pulse-save-glow 12s ease-in-out infinite;
+   816→}
+   817→
+   818→/* Celebration burst on click */
+   819→@keyframes celebrate-burst {
+   820→  0% { transform: scale(1); }
+   821→  20% { transform: scale(1.15); }
+   822→  40% { transform: scale(0.95); }
+   823→  60% { transform: scale(1.05); }
+   824→  100% { transform: scale(1); }
+   825→}
+   826→
+   827→.animate-celebrate {
+   828→  animation: celebrate-burst 0.5s ease-out;
+   829→}
+   830→
+   831→/* Confetti float animation for mood celebrations */
+   832→@keyframes confetti-float {
+   833→  0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+   834→  25% { transform: translateY(-12px) rotate(60deg) translateX(4px); opacity: 0.85; }
+   835→  50% { transform: translateY(-20px) rotate(120deg) translateX(-4px); opacity: 0.65; }
+   836→  75% { transform: translateY(-30px) rotate(200deg) translateX(2px); opacity: 0.35; }
+   837→  100% { transform: translateY(-40px) rotate(280deg) translateX(-2px); opacity: 0; }
+   838→}
+   839→
+   840→.animate-confetti-float {
+   841→  animation: confetti-float 5s ease-out forwards;
+   842→}
+   843→
+   844→/* Red glow shadow (subtle) for high score cards */
+   845→.glow-red-soft {
+   846→  box-shadow: 0 0 15px 3px rgba(239, 68, 68, 0.25);
+   847→}
+   848→
+   849→/* Slider track gradient (red shades only) */
+   850→.slider-gradient-track [data-orientation="horizontal"] > span:first-child {
+   851→  background: linear-gradient(to right, #7f1d1d, #dc2626, #f87171) !important;
+   852→}
+   853→
+   854→/* Animated gradient for welcome area */
+   855→@keyframes welcome-gradient {
+   856→  0% { background-position: 0% 50%; }
+   857→  25% { background-position: 50% 100%; }
+   858→  50% { background-position: 100% 50%; }
+   859→  75% { background-position: 50% 0%; }
+   860→  100% { background-position: 0% 50%; }
+   861→}
+   862→
+   863→.animate-welcome-gradient {
+   864→  background-size: 300% 300%;
+   865→  animation: welcome-gradient 15s ease infinite;
+   866→}
+   867→
+   868→/* Online indicator pulse with glow */
+   869→@keyframes online-pulse-glow {
+   870→  0%, 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.3); }
+   871→  50% { box-shadow: 0 0 0 3px rgba(34, 197, 94, 0), 0 0 5px 1px rgba(34, 197, 94, 0.2); }
+   872→}
+   873→
+   874→.online-pulse-glow {
+   875→  animation: online-pulse-glow 10s ease-in-out infinite;
+   876→}
+   877→
+   878→/* Check-in template animated gradient border */
+   879→@keyframes template-gradient-border {
+   880→  0% { box-shadow: 0 0 0 2px #ef4444, 0 0 6px rgba(239, 68, 68, 0.3); }
+   881→  33% { box-shadow: 0 0 0 2px #f59e0b, 0 0 6px rgba(245, 158, 11, 0.3); }
+   882→  66% { box-shadow: 0 0 0 2px #22c55e, 0 0 6px rgba(34, 197, 94, 0.3); }
+   883→  100% { box-shadow: 0 0 0 2px #ef4444, 0 0 6px rgba(239, 68, 68, 0.3); }
+   884→}
+   885→
+   886→.template-gradient-active {
+   887→  animation: template-gradient-border 12s ease-in-out infinite;
+   888→}
+   889→
+   890→/* ===================================================================
+   891→   SLOW, SOPHISTICATED ANIMATIONS
+   892→   Calm, ambient, deliberate motion. 8s–20s loops, 0.6s+ fades.
+   893→   Opacity overlays at 3–8%. Movements of 8–16px max. Never garish.
+   894→   =================================================================== */
+   895→
+   896→/* 1. Slow background-position shift for ambient gradients (15-20s) */
+   897→@keyframes slow-gradient-shift {
+   898→  0% { background-position: 0% 50%; }
+   899→  50% { background-position: 100% 50%; }
+   900→  100% { background-position: 0% 50%; }
+   901→}
+   902→
+   903→/* 2. Ambient gradient overlay — extremely subtle, slow-moving.
+   904→   Apply to fixed/absolute background containers. Content inside should
+   905→   use `relative z-10` (or similar) to sit above the gradient. */
+   906→.ambient-gradient {
+   907→  position: relative;
+   908→}
+   909→.ambient-gradient::before {
+   910→  content: "";
+   911→  position: absolute;
+   912→  inset: 0;
+   913→  pointer-events: none;
+   914→  z-index: 0;
+   915→  background:
+   916→    radial-gradient(circle at 20% 30%, rgba(239, 68, 68, 0.045), transparent 55%),
+   917→    radial-gradient(circle at 80% 70%, rgba(120, 113, 108, 0.05), transparent 55%),
+   918→    linear-gradient(120deg, rgba(239, 68, 68, 0.025), rgba(0, 0, 0, 0) 60%);
+   919→  background-size: 200% 200%, 200% 200%, 200% 200%;
+   920→  animation: slow-gradient-shift 18s ease-in-out infinite;
+   921→}
+   922→.dark .ambient-gradient::before {
+   923→  background:
+   924→    radial-gradient(circle at 20% 30%, rgba(239, 68, 68, 0.06), transparent 55%),
+   925→    radial-gradient(circle at 80% 70%, rgba(255, 255, 255, 0.03), transparent 55%),
+   926→    linear-gradient(120deg, rgba(239, 68, 68, 0.035), rgba(0, 0, 0, 0) 60%);
+   927→  background-size: 200% 200%, 200% 200%, 200% 200%;
+   928→}
+   929→
+   930→/* 3. Slow fade-in (opacity 0→1, translateY 8px→0) over ~1s */
+   931→@keyframes slow-fade-in {
+   932→  from { opacity: 0; transform: translateY(8px); }
+   933→  to { opacity: 1; transform: translateY(0); }
+   934→}
+   935→.animate-slow-fade-in {
+   936→  animation: slow-fade-in 1s ease-out both;
+   937→}
+   938→
+   939→/* 4. Slow fade-up (more pronounced y: 16px→0) over ~1s */
+   940→@keyframes slow-fade-up {
+   941→  from { opacity: 0; transform: translateY(16px); }
+   942→  to { opacity: 1; transform: translateY(0); }
+   943→}
+   944→.animate-slow-fade-up {
+   945→  animation: slow-fade-up 1s ease-out both;
+   946→}
+   947→
+   948→/* 5. Slow soft pulse for icons/accents — very subtle (1.0→1.03→1.0), 5s */
+   949→@keyframes slow-pulse-soft {
+   950→  0%, 100% { opacity: 1; transform: scale(1); }
+   951→  50% { opacity: 0.92; transform: scale(1.03); }
+   952→}
+   953→.animate-slow-pulse {
+   954→  animation: slow-pulse-soft 5s ease-in-out infinite;
+   955→  transform-origin: center;
+   956→}
+   957→
+   958→/* 6. Color sweep — a thin colored glow that slowly sweeps across a container.
+   959→   Uses ::after pseudo-element with a gradient translating from -100% to 100%. */
+   960→@keyframes color-sweep {
+   961→  0% { transform: translateX(-100%); opacity: 0; }
+   962→  20% { opacity: 1; }
+   963→  80% { opacity: 1; }
+   964→  100% { transform: translateX(100%); opacity: 0; }
+   965→}
+   966→.animate-color-sweep {
+   967→  position: relative;
+   968→  overflow: hidden;
+   969→}
+   970→.animate-color-sweep::after {
+   971→  content: "";
+   972→  position: absolute;
+   973→  top: 0;
+   974→  left: 0;
+   975→  height: 100%;
+   976→  width: 50%;
+   977→  pointer-events: none;
+   978→  background: linear-gradient(
+   979→    90deg,
+   980→    transparent 0%,
+   981→    rgba(239, 68, 68, 0.08) 40%,
+   982→    rgba(248, 113, 113, 0.12) 50%,
+   983→    rgba(239, 68, 68, 0.08) 60%,
+   984→    transparent 100%
+   985→  );
+   986→  transform: translateX(-100%);
+   987→  animation: color-sweep 11s ease-in-out infinite;
+   988→  animation-delay: 2s;
+   989→}
+   990→
+   991→/* 7. Slow scale-in (scale 0.96→1, opacity 0→1) over ~0.7s */
+   992→@keyframes slow-scale-in {
+   993→  from { opacity: 0; transform: scale(0.96); }
+   994→  to { opacity: 1; transform: scale(1); }
+   995→}
+   996→.animate-slow-scale-in {
+   997→  animation: slow-scale-in 0.7s ease-out both;
+   998→}
+   999→
+  1000→/* 8. Staggered fade-in helpers for drawer nav items (~50ms between each) */
+  1001→.animate-slow-fade-in-stagger > * {
+  1002→  animation: slow-fade-in 0.4s ease-out both;
+  1003→}
+  1004→.animate-slow-fade-in-stagger > *:nth-child(1) { animation-delay: 0.05s; }
+  1005→.animate-slow-fade-in-stagger > *:nth-child(2) { animation-delay: 0.10s; }
+  1006→.animate-slow-fade-in-stagger > *:nth-child(3) { animation-delay: 0.15s; }
+  1007→.animate-slow-fade-in-stagger > *:nth-child(4) { animation-delay: 0.20s; }
+  1008→.animate-slow-fade-in-stagger > *:nth-child(5) { animation-delay: 0.25s; }
+  1009→.animate-slow-fade-in-stagger > *:nth-child(6) { animation-delay: 0.30s; }
+  1010→.animate-slow-fade-in-stagger > *:nth-child(7) { animation-delay: 0.35s; }
+  1011→.animate-slow-fade-in-stagger > *:nth-child(8) { animation-delay: 0.40s; }
+  1012→.animate-slow-fade-in-stagger > *:nth-child(9) { animation-delay: 0.45s; }
+  1013→.animate-slow-fade-in-stagger > *:nth-child(10) { animation-delay: 0.50s; }
+  1014→.animate-slow-fade-in-stagger > *:nth-child(11) { animation-delay: 0.55s; }
+  1015→.animate-slow-fade-in-stagger > *:nth-child(12) { animation-delay: 0.60s; }
+  1016→
+  1017→/* Respect reduced motion preferences */
+  1018→@media (prefers-reduced-motion: reduce) {
+  1019→  .animate-slow-fade-in,
+  1020→  .animate-slow-fade-up,
+  1021→  .animate-slow-scale-in,
+  1022→  .animate-slow-fade-in-stagger > * {
+  1023→    animation-duration: 0.01ms !important;
+  1024→    animation-delay: 0s !important;
+  1025→  }
+  1026→  .animate-slow-pulse,
+  1027→  .animate-color-sweep::after,
+  1028→  .ambient-gradient::before {
+  1029→    animation: none !important;
+  1030→  }
+  1031→}
+  1032→

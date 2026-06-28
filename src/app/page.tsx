@@ -3,41 +3,41 @@
 import { useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { useAppStore, DashboardData } from '@/lib/store'
-import { AuthGate } from '@/components/myos/auth-gate'
-import { Sidebar } from '@/components/myos/sidebar'
-import { Settings } from '@/components/myos/settings'
-import { Dashboard } from '@/components/myos/dashboard'
-import { Chat } from '@/components/myos/chat'
-import { Goals } from '@/components/myos/goals'
-import { Finances } from '@/components/myos/finances'
-import { Insights } from '@/components/myos/insights'
-import { Calendar } from '@/components/myos/calendar'
-import { LifeTab } from '@/components/myos/life-tab'
-import { MoreTab } from '@/components/myos/more-tab'
-import { Journal } from '@/components/myos/journal'
-import { Habits } from '@/components/myos/habits'
-import { WeeklyReview } from '@/components/myos/weekly-review'
-import { MoodLog } from '@/components/myos/mood-log'
-import { ErrorBoundary } from '@/components/myos/error-boundary'
+import { AuthGate } from '@/components/praise-os/auth-gate'
+import { Sidebar } from '@/components/praise-os/sidebar'
+import { Settings } from '@/components/praise-os/settings'
+import { Dashboard } from '@/components/praise-os/dashboard'
+import { Chat } from '@/components/praise-os/chat'
+import { Goals } from '@/components/praise-os/goals'
+import { Finances } from '@/components/praise-os/finances'
+import { Insights } from '@/components/praise-os/insights'
+import { Calendar } from '@/components/praise-os/calendar'
+import { LifeTab } from '@/components/praise-os/life-tab'
+import { MoreTab } from '@/components/praise-os/more-tab'
+import { Journal } from '@/components/praise-os/journal'
+import { Habits } from '@/components/praise-os/habits'
+import { WeeklyReview } from '@/components/praise-os/weekly-review'
+import { MoodLog } from '@/components/praise-os/mood-log'
+import { ErrorBoundary } from '@/components/praise-os/error-boundary'
 import { Heart, Loader2 } from 'lucide-react'
-import { SearchDialog, SearchTrigger } from '@/components/myos/search-dialog'
-import { NotificationManager } from '@/components/myos/notification-manager'
-import { OnboardingTour } from '@/components/myos/onboarding-tour'
-import { SwipeHandler } from '@/components/myos/swipe-handler'
-import { CelebrationOverlay } from '@/components/myos/celebrations'
-import { DarkModeSync } from '@/components/myos/dark-mode-sync'
-import { QuickActions } from '@/components/myos/quick-actions'
-import { VoiceMode } from '@/components/myos/voice-mode'
+import { SearchDialog, SearchTrigger } from '@/components/praise-os/search-dialog'
+import { NotificationManager } from '@/components/praise-os/notification-manager'
+import { OnboardingTour } from '@/components/praise-os/onboarding-tour'
+import { SwipeHandler } from '@/components/praise-os/swipe-handler'
+import { CelebrationOverlay } from '@/components/praise-os/celebrations'
+import { DarkModeSync } from '@/components/praise-os/dark-mode-sync'
+import { QuickActions } from '@/components/praise-os/quick-actions'
+import { VoiceMode } from '@/components/praise-os/voice-mode'
 import { AnimatePresence, motion } from 'framer-motion'
 
-const About = dynamic(() => import('@/components/myos/about').then(m => ({ default: m.About })), { loading: () => <Loading /> })
-const FaithPage = dynamic(() => import('@/components/myos/life-areas/faith-page').then(m => ({ default: m.FaithPage })), { loading: () => <Loading /> })
-const HealthPage = dynamic(() => import('@/components/myos/life-areas/health-page').then(m => ({ default: m.HealthPage })), { loading: () => <Loading /> })
-const CareerPage = dynamic(() => import('@/components/myos/life-areas/career-page').then(m => ({ default: m.CareerPage })), { loading: () => <Loading /> })
-const HavilahPage = dynamic(() => import('@/components/myos/life-areas/havilah-page').then(m => ({ default: m.HavilahPage })), { loading: () => <Loading /> })
-const FinancesPage = dynamic(() => import('@/components/myos/life-areas/finances-page').then(m => ({ default: m.FinancesPage })), { loading: () => <Loading /> })
-const RelationshipsPage = dynamic(() => import('@/components/myos/life-areas/relationships-page').then(m => ({ default: m.RelationshipsPage })), { loading: () => <Loading /> })
-const PersonalGrowthPage = dynamic(() => import('@/components/myos/life-areas/personal-growth-page').then(m => ({ default: m.PersonalGrowthPage })), { loading: () => <Loading /> })
+const About = dynamic(() => import('@/components/praise-os/about').then(m => ({ default: m.About })), { loading: () => <Loading /> })
+const FaithPage = dynamic(() => import('@/components/praise-os/life-areas/faith-page').then(m => ({ default: m.FaithPage })), { loading: () => <Loading /> })
+const HealthPage = dynamic(() => import('@/components/praise-os/life-areas/health-page').then(m => ({ default: m.HealthPage })), { loading: () => <Loading /> })
+const CareerPage = dynamic(() => import('@/components/praise-os/life-areas/career-page').then(m => ({ default: m.CareerPage })), { loading: () => <Loading /> })
+const HavilahPage = dynamic(() => import('@/components/praise-os/life-areas/havilah-page').then(m => ({ default: m.HavilahPage })), { loading: () => <Loading /> })
+const FinancesPage = dynamic(() => import('@/components/praise-os/life-areas/finances-page').then(m => ({ default: m.FinancesPage })), { loading: () => <Loading /> })
+const RelationshipsPage = dynamic(() => import('@/components/praise-os/life-areas/relationships-page').then(m => ({ default: m.RelationshipsPage })), { loading: () => <Loading /> })
+const PersonalGrowthPage = dynamic(() => import('@/components/praise-os/life-areas/personal-growth-page').then(m => ({ default: m.PersonalGrowthPage })), { loading: () => <Loading /> })
 
 function Loading() {
   return (
@@ -118,7 +118,7 @@ function renderTab(tab: string, chatResetKey: number = 0) {
 }
 
 export default function MyOSApp() {
-  const { isAuthenticated, activeTab, settingsOpen, setSettingsOpen } = useAppStore()
+  const { isAuthenticated, activeTab, settingsOpen, setSettingsOpen, osName } = useAppStore()
 
   // Handle OAuth callback redirect params - open Settings to show the result
   useEffect(() => {
@@ -183,7 +183,7 @@ export default function MyOSApp() {
       <footer className="hidden md:block md:ml-64 bg-black text-white py-3 px-6 mt-auto">
         <p className="text-[10px] text-neutral-400 flex items-center justify-center gap-1">
           <Heart className="h-3 w-3 text-red-500" />
-          MyOS &bull; Life Operating System for User &bull; Aligned &bull; Disciplined &bull; Joyful
+          {osName} &bull; Life Operating System &bull; Aligned &bull; Disciplined &bull; Joyful
         </p>
       </footer>
       <NotificationManager />

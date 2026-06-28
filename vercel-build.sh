@@ -1,6 +1,6 @@
 #!/bin/bash
 # ─────────────────────────────────────────────────────────────────────────────
-# vercel-build.sh — Smart build script for MyOS on Vercel
+# vercel-build.sh — Smart build script for Praise OS on Vercel
 #
 # This script runs INSTEAD OF the default `next build` (configured via
 # vercel.json). It ensures the Prisma database provider matches the
@@ -28,7 +28,7 @@ DB_URL="${DATABASE_URL:-}"
 SCHEMA="prisma/schema.prisma"
 
 echo "=========================================="
-echo "  MyOS — Vercel Build"
+echo "  Praise OS — Vercel Build"
 echo "=========================================="
 echo ""
 

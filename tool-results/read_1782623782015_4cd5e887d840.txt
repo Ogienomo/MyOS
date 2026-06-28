@@ -1,0 +1,1349 @@
+     1→'use client'
+     2→
+     3→import { useState, useEffect, useCallback } from 'react'
+     4→import { Shield, Loader2, CheckCircle2, AlertCircle, Clock, Bell, Mic, Camera, Lock, Sun, Moon, Monitor, Link2, Unlink, Mail, Calendar, RefreshCw, Key, Download, Wallet, BookOpen, Target, Brain, BarChart3, ClipboardCheck, Database, Plus, Trash2, AlarmClock } from 'lucide-react'
+     5→import {
+     6→  Dialog,
+     7→  DialogContent,
+     8→  DialogDescription,
+     9→  DialogFooter,
+    10→  DialogHeader,
+    11→  DialogTitle,
+    12→} from '@/components/ui/dialog'
+    13→import { Input } from '@/components/ui/input'
+    14→import { Button } from '@/components/ui/button'
+    15→import { Label } from '@/components/ui/label'
+    16→import { Switch } from '@/components/ui/switch'
+    17→import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+    18→import { Badge } from '@/components/ui/badge'
+    19→import { Card, CardContent } from '@/components/ui/card'
+    20→import { useAppStore, UserSettings } from '@/lib/store'
+    21→import { useTheme } from 'next-themes'
+    22→import { Checkbox } from '@/components/ui/checkbox'
+    23→import { motion, AnimatePresence } from 'framer-motion'
+    24→
+    25→interface CustomReminder {
+    26→  id: string
+    27→  title: string
+    28→  message: string
+    29→  time: string
+    30→  days: string
+    31→  active: boolean
+    32→  createdAt: string
+    33→  updatedAt: string
+    34→}
+    35→
+    36→const DAY_LABELS = [
+    37→  { value: 1, label: 'Mon' },
+    38→  { value: 2, label: 'Tue' },
+    39→  { value: 3, label: 'Wed' },
+    40→  { value: 4, label: 'Thu' },
+    41→  { value: 5, label: 'Fri' },
+    42→  { value: 6, label: 'Sat' },
+    43→  { value: 7, label: 'Sun' },
+    44→]
+    45→
+    46→interface SettingsProps {
+    47→  open: boolean
+    48→  onOpenChange: (open: boolean) => void
+    49→}
+    50→
+    51→const DEFAULT_SETTINGS: UserSettings = {
+    52→  checkInWindows: {
+    53→    morningEnabled: true,
+    54→    morningTime: '05:00',
+    55→    eveningEnabled: true,
+    56→    eveningTime: '20:30',
+    57→    windowMinutes: 60,
+    58→    strictMode: false,
+    59→  },
+    60→  notificationsEnabled: true,
+    61→  morningReminderEnabled: true,
+    62→  eveningReminderEnabled: true,
+    63→  driftAlertNotifications: true,
+    64→  streakNotifications: true,
+    65→  morningReminderMinutesBefore: 10,
+    66→  eveningReminderMinutesBefore: 10,
+    67→  voiceNotesEnabled: true,
+    68→  imageUploadEnabled: true,
+    69→  darkMode: false,
+    70→  googleCalendarEnabled: false,
+    71→  googleEmailReminders: false,
+    72→  googleReminderEmail: '',
+    73→}
+    74→
+    75→const tabContentVariants = {
+    76→  hidden: { opacity: 0, y: 8 },
+    77→  visible: { opacity: 1, y: 0, transition: { duration: 0.25, ease: 'easeOut' } },
+    78→  exit: { opacity: 0, y: -4, transition: { duration: 0.15 } },
+    79→}
+    80→
+    81→export function Settings({ open, onOpenChange }: SettingsProps) {
+    82→  const { userSettings, setUserSettings } = useAppStore()
+    83→  const { theme, setTheme } = useTheme()
+    84→  const [currentCode, setCurrentCode] = useState('')
+    85→  const [newCode, setNewCode] = useState('')
+    86→  const [confirmCode, setConfirmCode] = useState('')
+    87→  const [loading, setLoading] = useState(false)
+    88→  const [success, setSuccess] = useState(false)
+    89→  const [error, setError] = useState('')
+    90→  const [settingsLoading, setSettingsLoading] = useState(false)
+    91→  const [localSettings, setLocalSettings] = useState<UserSettings>(userSettings || DEFAULT_SETTINGS)
+    92→  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>(
+    93→    typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'default'
+    94→  )
+    95→  const [activeTab, setActiveTab] = useState('checkins')
+    96→
+    97→  // Google integration state
+    98→  const [googleConnected, setGoogleConnected] = useState(false)
+    99→  const [googleConnectLoading, setGoogleConnectLoading] = useState(false)
+   100→  const [googleError, setGoogleError] = useState('')
+   101→  const [googleSuccess, setGoogleSuccess] = useState('')
+   102→  const [googleEnvConfigured, setGoogleEnvConfigured] = useState<boolean | null>(null)
+   103→  const [syncLoading, setSyncLoading] = useState(false)
+   104→  const [syncResult, setSyncResult] = useState<{ success: boolean; message: string } | null>(null)
+   105→  const [exportLoading, setExportLoading] = useState<string | null>(null)
+   106→  const [storageData, setStorageData] = useState<{
+   107→    tables: Array<{ name: string; icon: string; count: number }>
+   108→    totalRecords: number
+   109→    dbSizeFormatted: string
+   110→    storageInfo: { type: string; description: string; recommendation: string }
+   111→  } | null>(null)
+   112→  const [storageLoading, setStorageLoading] = useState(false)
+   113→
+   114→  // Custom reminders state
+   115→  const [reminders, setReminders] = useState<CustomReminder[]>([])
+   116→  const [remindersLoading, setRemindersLoading] = useState(false)
+   117→  const [showAddReminder, setShowAddReminder] = useState(false)
+   118→  const [newReminder, setNewReminder] = useState({
+   119→    title: '',
+   120→    message: '',
+   121→    time: '09:00',
+   122→    days: [1, 2, 3, 4, 5] as number[], // Weekdays default
+   123→  })
+   124→
+   125→  useEffect(() => {
+   126→    if (open) {
+   127→      fetchSettings()
+   128→      checkGoogleConnection()
+   129→      checkGoogleEnvConfigured()
+   130→      fetchReminders()
+   131→      fetchStorageData()
+   132→    }
+   133→  }, [open])
+   134→
+   135→  // Handle OAuth callback URL params
+   136→  useEffect(() => {
+   137→    if (typeof window === 'undefined') return
+   138→    const params = new URLSearchParams(window.location.search)
+   139→    const googleConnectedParam = params.get('google_connected')
+   140→    const googleErrorParam = params.get('google_error')
+   141→
+   142→    if (googleConnectedParam === 'true') {
+   143→      setGoogleSuccess('Google account connected successfully!')
+   144→      // Clean up URL
+   145→      const url = new URL(window.location.href)
+   146→      url.searchParams.delete('google_connected')
+   147→      url.searchParams.delete('google_error')
+   148→      window.history.replaceState({}, '', url.toString())
+   149→      // Auto-clear after 5s
+   150→      setTimeout(() => setGoogleSuccess(''), 5000)
+   151→    }
+   152→    if (googleErrorParam) {
+   153→      setGoogleError(decodeURIComponent(googleErrorParam))
+   154→      // Clean up URL
+   155→      const url = new URL(window.location.href)
+   156→      url.searchParams.delete('google_connected')
+   157→      url.searchParams.delete('google_error')
+   158→      window.history.replaceState({}, '', url.toString())
+   159→      // Auto-clear after 8s
+   160→      setTimeout(() => setGoogleError(''), 8000)
+   161→    }
+   162→  }, [])
+   163→
+   164→  const fetchSettings = async () => {
+   165→    try {
+   166→      const res = await fetch('/api/settings')
+   167→      const data = await res.json()
+   168→      if (data.settings) {
+   169→        setLocalSettings(data.settings)
+   170→        setUserSettings(data.settings)
+   171→      }
+   172→    } catch (err) {
+   173→      console.error('Failed to fetch settings:', err)
+   174→    }
+   175→  }
+   176→
+   177→  const checkGoogleConnection = useCallback(async () => {
+   178→    try {
+   179→      const res = await fetch('/api/google/calendar')
+   180→      if (res.ok) {
+   181→        setGoogleConnected(true)
+   182→      } else {
+   183→        setGoogleConnected(false)
+   184→      }
+   185→    } catch {
+   186→      setGoogleConnected(false)
+   187→    }
+   188→  }, [])
+   189→
+   190→  const checkGoogleEnvConfigured = useCallback(async () => {
+   191→    try {
+   192→      const res = await fetch('/api/google/auth-url')
+   193→      if (res.ok) {
+   194→        const data = await res.json()
+   195→        setGoogleEnvConfigured(!!data.authUrl)
+   196→      } else {
+   197→        const data = await res.json().catch(() => ({}))
+   198→        setGoogleEnvConfigured(false)
+   199→      }
+   200→    } catch {
+   201→      setGoogleEnvConfigured(false)
+   202→    }
+   203→  }, [])
+   204→
+   205→  const resetForm = () => {
+   206→    setCurrentCode('')
+   207→    setNewCode('')
+   208→    setConfirmCode('')
+   209→    setLoading(false)
+   210→    setSuccess(false)
+   211→    setError('')
+   212→  }
+   213→
+   214→  const handleClose = (isOpen: boolean) => {
+   215→    if (!isOpen) {
+   216→      resetForm()
+   217→    }
+   218→    onOpenChange(isOpen)
+   219→  }
+   220→
+   221→  const handleSubmit = async (e: React.FormEvent) => {
+   222→    e.preventDefault()
+   223→    setError('')
+   224→
+   225→    if (!currentCode.trim()) { setError('Current access code is required'); return }
+   226→    if (!newCode.trim()) { setError('New access code is required'); return }
+   227→    if (newCode.length < 4) { setError('New access code must be at least 4 characters'); return }
+   228→    if (newCode !== confirmCode) { setError('New codes do not match'); return }
+   229→    if (currentCode === newCode) { setError('New code must be different from current code'); return }
+   230→
+   231→    setLoading(true)
+   232→    try {
+   233→      const res = await fetch('/api/auth', {
+   234→        method: 'PATCH',
+   235→        headers: { 'Content-Type': 'application/json' },
+   236→        body: JSON.stringify({ currentCode: currentCode.trim(), newCode: newCode.trim() }),
+   237→      })
+   238→      const data = await res.json()
+   239→      if (res.ok && data.success) {
+   240→        setSuccess(true)
+   241→        setTimeout(() => { handleClose(false) }, 1500)
+   242→      } else {
+   243→        setError(data.error || 'Failed to update access code')
+   244→      }
+   245→    } catch {
+   246→      setError('Connection error. Please try again.')
+   247→    } finally {
+   248→      setLoading(false)
+   249→    }
+   250→  }
+   251→
+   252→  const saveSettings = async (newSettings: UserSettings) => {
+   253→    setSettingsLoading(true)
+   254→    try {
+   255→      const res = await fetch('/api/settings', {
+   256→        method: 'POST',
+   257→        headers: { 'Content-Type': 'application/json' },
+   258→        body: JSON.stringify({ settings: newSettings }),
+   259→      })
+   260→      const data = await res.json()
+   261→      if (data.success) {
+   262→        setLocalSettings(data.settings)
+   263→        setUserSettings(data.settings)
+   264→      }
+   265→    } catch (err) {
+   266→      console.error('Failed to save settings:', err)
+   267→    } finally {
+   268→      setSettingsLoading(false)
+   269→    }
+   270→  }
+   271→
+   272→  const updateSetting = (key: string, value: boolean | number | string) => {
+   273→    const updated = { ...localSettings, [key]: value }
+   274→    setLocalSettings(updated)
+   275→    saveSettings(updated)
+   276→  }
+   277→
+   278→  const updateCheckInWindow = (key: string, value: boolean | number | string) => {
+   279→    const updated = {
+   280→      ...localSettings,
+   281→      checkInWindows: { ...localSettings.checkInWindows, [key]: value },
+   282→    }
+   283→    setLocalSettings(updated)
+   284→    saveSettings(updated)
+   285→  }
+   286→
+   287→  const handleRequestNotifications = async () => {
+   288→    if (typeof window === 'undefined' || !('Notification' in window)) {
+   289→      return
+   290→    }
+   291→    const permission = await Notification.requestPermission()
+   292→    setNotificationPermission(permission)
+   293→    if (permission === 'granted') {
+   294→      new Notification('Praise OS Notifications Enabled', {
+   295→        body: 'You will now receive check-in reminders and alerts.',
+   296→        icon: '/logo.svg',
+   297→      })
+   298→    }
+   299→  }
+   300→
+   301→  // Google integration handlers
+   302→  const handleConnectGoogle = async () => {
+   303→    setGoogleError('')
+   304→    setGoogleConnectLoading(true)
+   305→    try {
+   306→      const res = await fetch('/api/google/auth-url')
+   307→      const data = await res.json()
+   308→      if (data.authUrl) {
+   309→        window.location.href = data.authUrl
+   310→      } else if (data.error) {
+   311→        console.error('Google auth URL error:', data.error)
+   312→        setGoogleError(data.error)
+   313→        setGoogleEnvConfigured(false)
+   314→        setTimeout(() => setGoogleError(''), 8000)
+   315→      }
+   316→    } catch (err) {
+   317→      console.error('Failed to get Google auth URL:', err)
+   318→      setGoogleError('Failed to connect Google. Please check your network connection and try again.')
+   319→      setTimeout(() => setGoogleError(''), 8000)
+   320→    } finally {
+   321→      setGoogleConnectLoading(false)
+   322→    }
+   323→  }
+   324→
+   325→  const handleDisconnectGoogle = async () => {
+   326→    try {
+   327→      const updated = {
+   328→        ...localSettings,
+   329→        googleCalendarEnabled: false,
+   330→        googleEmailReminders: false,
+   331→      }
+   332→      setLocalSettings(updated)
+   333→      await saveSettings(updated)
+   334→      setGoogleConnected(false)
+   335→    } catch (err) {
+   336→      console.error('Failed to disconnect Google:', err)
+   337→    }
+   338→  }
+   339→
+   340→  const handleSyncCalendarReminders = async (enabled: boolean) => {
+   341→    updateSetting('googleCalendarEnabled', enabled)
+   342→    if (enabled && googleConnected) {
+   343→      setSyncLoading(true)
+   344→      setSyncResult(null)
+   345→      try {
+   346→        const res = await fetch('/api/google/sync-calendar', {
+   347→          method: 'POST',
+   348→          headers: { 'Content-Type': 'application/json' },
+   349→          body: JSON.stringify({
+   350→            checkInTimes: {
+   351→              morningTime: localSettings.checkInWindows.morningTime || '05:00',
+   352→              middayTime: '12:00',
+   353→              eveningTime: localSettings.checkInWindows.eveningTime || '20:30',
+   354→              fridayTime: '16:30',
+   355→              sundayTime: '18:00',
+   356→            },
+   357→          }),
+   358→        })
+   359→        const data = await res.json()
+   360→        if (res.ok && data.success) {
+   361→          setSyncResult({ success: true, message: data.message })
+   362→        } else {
+   363→          setSyncResult({ success: false, message: data.error || 'Failed to sync calendar' })
+   364→        }
+   365→      } catch {
+   366→        setSyncResult({ success: false, message: 'Network error. Please try again.' })
+   367→      } finally {
+   368→        setSyncLoading(false)
+   369→        setTimeout(() => setSyncResult(null), 5000)
+   370→      }
+   371→    }
+   372→  }
+   373→
+   374→  // Custom reminder handlers
+   375→  const fetchReminders = useCallback(async () => {
+   376→    setRemindersLoading(true)
+   377→    try {
+   378→      const res = await fetch('/api/notifications/reminders')
+   379→      if (res.ok) {
+   380→        const data = await res.json()
+   381→        setReminders(data)
+   382→      }
+   383→    } catch {
+   384→      // Silently fail
+   385→    } finally {
+   386→      setRemindersLoading(false)
+   387→    }
+   388→  }, [])
+   389→
+   390→  const fetchStorageData = useCallback(async () => {
+   391→    setStorageLoading(true)
+   392→    try {
+   393→      const res = await fetch('/api/storage')
+   394→      if (res.ok) {
+   395→        const data = await res.json()
+   396→        setStorageData(data)
+   397→      }
+   398→    } catch {
+   399→      // Silently fail
+   400→    } finally {
+   401→      setStorageLoading(false)
+   402→    }
+   403→  }, [])
+   404→
+   405→  const handleCreateReminder = async () => {
+   406→    if (!newReminder.title || newReminder.days.length === 0) return
+   407→    try {
+   408→      const res = await fetch('/api/notifications/reminders', {
+   409→        method: 'POST',
+   410→        headers: { 'Content-Type': 'application/json' },
+   411→        body: JSON.stringify({
+   412→          title: newReminder.title,
+   413→          message: newReminder.message,
+   414→          time: newReminder.time,
+   415→          days: newReminder.days,
+   416→        }),
+   417→      })
+   418→      if (res.ok) {
+   419→        setShowAddReminder(false)
+   420→        setNewReminder({ title: '', message: '', time: '09:00', days: [1, 2, 3, 4, 5] })
+   421→        fetchReminders()
+   422→      }
+   423→    } catch {
+   424→      // Silently fail
+   425→    }
+   426→  }
+   427→
+   428→  const handleToggleReminder = async (id: string, active: boolean) => {
+   429→    try {
+   430→      const res = await fetch('/api/notifications/reminders', {
+   431→        method: 'PUT',
+   432→        headers: { 'Content-Type': 'application/json' },
+   433→        body: JSON.stringify({ id, active }),
+   434→      })
+   435→      if (res.ok) {
+   436→        setReminders(prev => prev.map(r => r.id === id ? { ...r, active } : r))
+   437→      }
+   438→    } catch {
+   439→      // Silently fail
+   440→    }
+   441→  }
+   442→
+   443→  const handleDeleteReminder = async (id: string) => {
+   444→    try {
+   445→      const res = await fetch(`/api/notifications/reminders?id=${id}`, { method: 'DELETE' })
+   446→      if (res.ok) {
+   447→        setReminders(prev => prev.filter(r => r.id !== id))
+   448→      }
+   449→    } catch {
+   450→      // Silently fail
+   451→    }
+   452→  }
+   453→
+   454→  const exportOptions = [
+   455→    { type: 'finances', label: 'Finances', desc: 'Income, expenses & categories', icon: <Wallet className="h-4 w-4 text-red-600" /> },
+   456→    { type: 'journal', label: 'Journal', desc: 'Entries, moods & reflections', icon: <BookOpen className="h-4 w-4 text-rose-600" /> },
+   457→    { type: 'goals', label: 'Goals', desc: 'Goals, tasks & progress', icon: <Target className="h-4 w-4 text-red-600" /> },
+   458→    { type: 'memories', label: 'Memories', desc: 'Wins, patterns & insights', icon: <Brain className="h-4 w-4 text-red-700" /> },
+   459→    { type: 'scores', label: 'Scores', desc: 'Life area scores over time', icon: <BarChart3 className="h-4 w-4 text-red-600" /> },
+   460→    { type: 'checkins', label: 'Check-ins', desc: 'Morning & evening check-ins', icon: <ClipboardCheck className="h-4 w-4 text-red-600" /> },
+   461→    { type: 'all', label: 'All Data', desc: 'Complete export of everything', icon: <Database className="h-4 w-4 text-neutral-600" /> },
+   462→  ]
+   463→
+   464→  const handleExport = async (type: string, format: 'csv' | 'json') => {
+   465→    try {
+   466→      setExportLoading(`${type}-${format}`)
+   467→      const res = await fetch(`/api/export?type=${type}&format=${format}`)
+   468→      const blob = await res.blob()
+   469→      const url = URL.createObjectURL(blob)
+   470→      const a = document.createElement('a')
+   471→      a.href = url
+   472→      a.download = `praise-os-${type}-${new Date().toISOString().split('T')[0]}.${format}`
+   473→      document.body.appendChild(a)
+   474→      a.click()
+   475→      document.body.removeChild(a)
+   476→      URL.revokeObjectURL(url)
+   477→    } catch (err) {
+   478→      console.error('Export failed:', err)
+   479→    } finally {
+   480→      setExportLoading(null)
+   481→    }
+   482→  }
+   483→
+   484→  return (
+   485→    <Dialog open={open} onOpenChange={handleClose}>
+   486→      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto w-[95vw] sm:w-auto rounded-t-2xl sm:rounded-2xl">
+   487→        <DialogHeader>
+   488→          <DialogTitle className="flex items-center gap-2">
+   489→            <Shield className="h-5 w-5 text-red-600" />
+   490→            Settings
+   491→          </DialogTitle>
+   492→          <DialogDescription>
+   493→            Configure your Praise OS experience
+   494→          </DialogDescription>
+   495→        </DialogHeader>
+   496→
+   497→        {settingsLoading && (
+   498→          <div className="flex items-center gap-2 text-xs text-neutral-500 py-1">
+   499→            <Loader2 className="h-3 w-3 animate-spin text-red-600" />
+   500→            Saving...
+   501→          </div>
+   502→        )}
+   503→
+   504→        {/* Quick schedule status banner */}
+   505→        {localSettings && (
+   506→          <div className="flex items-center gap-3 p-3 rounded-xl bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-100 dark:border-neutral-800">
+   507→            <AlarmClock className="h-4 w-4 text-red-600 shrink-0" />
+   508→            <div className="flex-1 min-w-0">
+   509→              <p className="text-[11px] font-semibold text-neutral-700 dark:text-neutral-300">Check-in Schedule</p>
+   510→              <p className="text-[10px] text-neutral-500 dark:text-neutral-400">
+   511→                Morning {localSettings.checkInWindows.morningEnabled ? `@ ${localSettings.checkInWindows.morningTime}` : '(off)'} &bull; Evening {localSettings.checkInWindows.eveningEnabled ? `@ ${localSettings.checkInWindows.eveningTime}` : '(off)'}{localSettings.checkInWindows.strictMode ? ' · Strict ON' : ''}
+   512→              </p>
+   513→            </div>
+   514→            <button onClick={() => setActiveTab('checkins')} className="text-[10px] text-red-600 hover:text-red-700 font-medium shrink-0">Edit</button>
+   515→          </div>
+   516→        )}
+   517→
+   518→        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+   519→          <TabsList className="w-full overflow-x-auto scrollbar-hide flex sm:grid sm:grid-cols-6 h-auto gap-0 p-1 -mx-1 px-1 sm:mx-0 sm:px-0">
+   520→            <TabsTrigger value="checkins" className="text-[10px] sm:text-[11px] px-2 sm:px-2.5 py-2 sm:py-2.5 shrink-0 whitespace-nowrap data-[state=active]:shadow-[inset_0_-2px_0_0_rgba(220,38,38,1)] data-[state=active]:border-b-2 data-[state=active]:border-red-600">Check-ins</TabsTrigger>
+   521→            <TabsTrigger value="appearance" className="text-[10px] sm:text-[11px] px-2 sm:px-2.5 py-2 sm:py-2.5 shrink-0 whitespace-nowrap data-[state=active]:shadow-[inset_0_-2px_0_0_rgba(220,38,38,1)] data-[state=active]:border-b-2 data-[state=active]:border-red-600">Appearance</TabsTrigger>
+   522→            <TabsTrigger value="features" className="text-[10px] sm:text-[11px] px-2 sm:px-2.5 py-2 sm:py-2.5 shrink-0 whitespace-nowrap data-[state=active]:shadow-[inset_0_-2px_0_0_rgba(220,38,38,1)] data-[state=active]:border-b-2 data-[state=active]:border-red-600">Features</TabsTrigger>
+   523→            <TabsTrigger value="integrations" className="text-[10px] sm:text-[11px] px-2 sm:px-2.5 py-2 sm:py-2.5 shrink-0 whitespace-nowrap data-[state=active]:shadow-[inset_0_-2px_0_0_rgba(220,38,38,1)] data-[state=active]:border-b-2 data-[state=active]:border-red-600">Integrations</TabsTrigger>
+   524→            <TabsTrigger value="data" className="text-[10px] sm:text-[11px] px-2 sm:px-2.5 py-2 sm:py-2.5 shrink-0 whitespace-nowrap data-[state=active]:shadow-[inset_0_-2px_0_0_rgba(220,38,38,1)] data-[state=active]:border-b-2 data-[state=active]:border-red-600">Data</TabsTrigger>
+   525→            <TabsTrigger value="security" className="text-[10px] sm:text-[11px] px-2 sm:px-2.5 py-2 sm:py-2.5 shrink-0 whitespace-nowrap data-[state=active]:shadow-[inset_0_-2px_0_0_rgba(220,38,38,1)] data-[state=active]:border-b-2 data-[state=active]:border-red-600">Security</TabsTrigger>
+   526→          </TabsList>
+   527→
+   528→          <AnimatePresence mode="wait">
+   529→            {/* Check-in Windows Tab */}
+   530→            {activeTab === 'checkins' && (
+   531→              <TabsContent value="checkins" className="mt-4 space-y-4" forceMount>
+   532→                <motion.div
+   533→                  key="checkins-content"
+   534→                  variants={tabContentVariants}
+   535→                  initial="hidden"
+   536→                  animate="visible"
+   537→                  exit="exit"
+   538→                  className="space-y-4"
+   539→                >
+   540→                  {/* Morning Check-in */}
+   541→                  <div className="space-y-3 p-4 rounded-lg border border-neutral-200 dark:border-neutral-700">
+   542→                    <div className="flex items-center justify-between">
+   543→                      <div className="flex items-center gap-2">
+   544→                        <Clock className="h-4 w-4 text-red-500" />
+   545→                        <span className="text-sm font-medium text-neutral-800 dark:text-neutral-200">Morning Check-in</span>
+   546→                      </div>
+   547→                      <Switch
+   548→                        checked={localSettings.checkInWindows.morningEnabled}
+   549→                        onCheckedChange={(v) => updateCheckInWindow('morningEnabled', v)}
+   550→                      />
+   551→                    </div>
+   552→                    {localSettings.checkInWindows.morningEnabled && (
+   553→                      <div className="space-y-2">
+   554→                        <div className="flex items-center gap-2">
+   555→                          <Label htmlFor="morning-time" className="text-xs text-neutral-500 w-20">Time</Label>
+   556→                          <Input
+   557→                            id="morning-time"
+   558→                            type="time"
+   559→                            value={localSettings.checkInWindows.morningTime}
+   560→                            onChange={(e) => updateCheckInWindow('morningTime', e.target.value)}
+   561→                            className="text-sm h-8"
+   562→                          />
+   563→                        </div>
+   564→                      </div>
+   565→                    )}
+   566→                  </div>
+   567→
+   568→                  {/* Evening Check-in */}
+   569→                  <div className="space-y-3 p-4 rounded-lg border border-neutral-200 dark:border-neutral-700">
+   570→                    <div className="flex items-center justify-between">
+   571→                      <div className="flex items-center gap-2">
+   572→                        <Clock className="h-4 w-4 text-red-500" />
+   573→                        <span className="text-sm font-medium text-neutral-800 dark:text-neutral-200">Evening Check-in</span>
+   574→                      </div>
+   575→                      <Switch
+   576→                        checked={localSettings.checkInWindows.eveningEnabled}
+   577→                        onCheckedChange={(v) => updateCheckInWindow('eveningEnabled', v)}
+   578→                      />
+   579→                    </div>
+   580→                    {localSettings.checkInWindows.eveningEnabled && (
+   581→                      <div className="space-y-2">
+   582→                        <div className="flex items-center gap-2">
+   583→                          <Label htmlFor="evening-time" className="text-xs text-neutral-500 w-20">Time</Label>
+   584→                          <Input
+   585→                            id="evening-time"
+   586→                            type="time"
+   587→                            value={localSettings.checkInWindows.eveningTime}
+   588→                            onChange={(e) => updateCheckInWindow('eveningTime', e.target.value)}
+   589→                            className="text-sm h-8"
+   590→                          />
+   591→                        </div>
+   592→                      </div>
+   593→                    )}
+   594→                  </div>
+   595→
+   596→                  {/* Strict Mode */}
+   597→                  <div className="flex items-center justify-between p-4 rounded-lg border border-neutral-200 dark:border-neutral-700">
+   598→                    <div>
+   599→                      <div className="flex items-center gap-2">
+   600→                        <Lock className="h-4 w-4 text-red-500" />
+   601→                        <span className="text-sm font-medium text-neutral-800 dark:text-neutral-200">Strict Mode</span>
+   602→                      </div>
+   603→                      <p className="text-xs leading-relaxed text-neutral-400 dark:text-neutral-500 mt-1">Only allow check-ins within the scheduled window</p>
+   604→                    </div>
+   605→                    <Switch
+   606→                      checked={localSettings.checkInWindows.strictMode}
+   607→                      onCheckedChange={(v) => updateCheckInWindow('strictMode', v)}
+   608→                    />
+   609→                  </div>
+   610→
+   611→                  {/* Window Minutes */}
+   612→                  <div className="p-4 rounded-lg border border-neutral-200 dark:border-neutral-700">
+   613→                    <Label className="text-xs text-neutral-500 dark:text-neutral-400">Check-in window (minutes before/after)</Label>
+   614→                    <Input
+   615→                      type="number"
+   616→                      min={5}
+   617→                      max={180}
+   618→                      value={localSettings.checkInWindows.windowMinutes}
+   619→                      onChange={(e) => updateCheckInWindow('windowMinutes', parseInt(e.target.value) || 60)}
+   620→                      className="text-sm h-8 mt-1"
+   621→                    />
+   622→                  </div>
+   623→
+   624→                  {/* Browser Notifications */}
+   625→                  <div className="space-y-3 p-4 rounded-lg border border-neutral-200 dark:border-neutral-700">
+   626→                    <div className="flex items-center justify-between">
+   627→                      <div className="flex items-center gap-2">
+   628→                        <Bell className="h-4 w-4 text-red-500" />
+   629→                        <span className="text-sm font-medium text-neutral-800 dark:text-neutral-200">Browser Notifications</span>
+   630→                      </div>
+   631→                      <Button
+   632→                        size="sm"
+   633→                        variant="outline"
+   634→                        className="text-xs h-7 sm:h-8 sm:text-sm"
+   635→                        onClick={handleRequestNotifications}
+   636→                        disabled={notificationPermission === 'denied'}
+   637→                      >
+   638→                        {notificationPermission === 'granted' ? '✓ Enabled' : notificationPermission === 'denied' ? 'Blocked' : 'Enable'}
+   639→                      </Button>
+   640→                    </div>
+   641→                    {notificationPermission === 'granted' && (
+   642→                      <div className="space-y-2 pl-6">
+   643→                        <div className="flex items-center justify-between">
+   644→                          <span className="text-xs text-neutral-600 dark:text-neutral-400">Morning reminder</span>
+   645→                          <Switch
+   646→                            checked={localSettings.morningReminderEnabled ?? true}
+   647→                            onCheckedChange={(v) => updateSetting('morningReminderEnabled', v)}
+   648→                          />
+   649→                        </div>
+   650→                        <div className="flex items-center justify-between">
+   651→                          <span className="text-xs text-neutral-600 dark:text-neutral-400">Evening reminder</span>
+   652→                          <Switch
+   653→                            checked={localSettings.eveningReminderEnabled ?? true}
+   654→                            onCheckedChange={(v) => updateSetting('eveningReminderEnabled', v)}
+   655→                          />
+   656→                        </div>
+   657→                        <div className="flex items-center justify-between">
+   658→                          <span className="text-xs text-neutral-600 dark:text-neutral-400">Drift alerts</span>
+   659→                          <Switch
+   660→                            checked={localSettings.driftAlertNotifications ?? true}
+   661→                            onCheckedChange={(v) => updateSetting('driftAlertNotifications', v)}
+   662→                          />
+   663→                        </div>
+   664→                        <div className="flex items-center justify-between">
+   665→                          <span className="text-xs text-neutral-600 dark:text-neutral-400">Streak celebrations</span>
+   666→                          <Switch
+   667→                            checked={localSettings.streakNotifications ?? true}
+   668→                            onCheckedChange={(v) => updateSetting('streakNotifications', v)}
+   669→                          />
+   670→                        </div>
+   671→                      </div>
+   672→                    )}
+   673→                    {notificationPermission === 'denied' && (
+   674→                      <p className="text-xs text-rose-500 pl-6">Notifications blocked. Please enable in browser settings.</p>
+   675→                    )}
+   676→                  </div>
+   677→
+   678→                  {/* Custom Reminders */}
+   679→                  <div className="space-y-3 p-4 rounded-lg border border-neutral-200 dark:border-neutral-700">
+   680→                    <div className="flex items-center justify-between">
+   681→                      <div className="flex items-center gap-2">
+   682→                        <AlarmClock className="h-4 w-4 text-red-500" />
+   683→                        <span className="text-sm font-medium text-neutral-800 dark:text-neutral-200">Custom Reminders</span>
+   684→                      </div>
+   685→                      <Button
+   686→                        size="sm"
+   687→                        variant="outline"
+   688→                        className="text-xs h-7 sm:h-8 sm:text-sm"
+   689→                        onClick={() => setShowAddReminder(true)}
+   690→                        disabled={showAddReminder}
+   691→                      >
+   692→                        <Plus className="h-3 w-3 mr-1" />
+   693→                        Add
+   694→                      </Button>
+   695→                    </div>
+   696→
+   697→                    {/* Add Reminder Form */}
+   698→                    {showAddReminder && (
+   699→                      <div className="space-y-2.5 p-3 rounded-md bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-700">
+   700→                        <div className="flex items-center gap-2">
+   701→                          <Label className="text-xs text-neutral-500 w-14 shrink-0">Title</Label>
+   702→                          <Input
+   703→                            value={newReminder.title}
+   704→                            onChange={(e) => setNewReminder(prev => ({ ...prev, title: e.target.value }))}
+   705→                            placeholder="e.g., Review weekly goals"
+   706→                            className="text-sm h-8"
+   707→                          />
+   708→                        </div>
+   709→                        <div className="flex items-center gap-2">
+   710→                          <Label className="text-xs text-neutral-500 w-14 shrink-0">Message</Label>
+   711→                          <Input
+   712→                            value={newReminder.message}
+   713→                            onChange={(e) => setNewReminder(prev => ({ ...prev, message: e.target.value }))}
+   714→                            placeholder="e.g., Take 10 minutes to review your goals"
+   715→                            className="text-sm h-8"
+   716→                          />
+   717→                        </div>
+   718→                        <div className="flex items-center gap-2">
+   719→                          <Label className="text-xs text-neutral-500 w-14 shrink-0">Time</Label>
+   720→                          <Input
+   721→                            type="time"
+   722→                            value={newReminder.time}
+   723→                            onChange={(e) => setNewReminder(prev => ({ ...prev, time: e.target.value }))}
+   724→                            className="text-sm h-8"
+   725→                          />
+   726→                        </div>
+   727→                        <div className="flex items-start gap-2">
+   728→                          <Label className="text-xs text-neutral-500 w-14 shrink-0 mt-1">Days</Label>
+   729→                          <div className="flex flex-wrap gap-2">
+   730→                            {DAY_LABELS.map(day => (
+   731→                              <label key={day.value} className="flex items-center gap-1 cursor-pointer">
+   732→                                <Checkbox
+   733→                                  checked={newReminder.days.includes(day.value)}
+   734→                                  onCheckedChange={(checked) => {
+   735→                                    setNewReminder(prev => ({
+   736→                                      ...prev,
+   737→                                      days: checked
+   738→                                        ? [...prev.days, day.value]
+   739→                                        : prev.days.filter(d => d !== day.value),
+   740→                                    }))
+   741→                                  }}
+   742→                                />
+   743→                                <span className="text-xs text-neutral-600 dark:text-neutral-400">{day.label}</span>
+   744→                              </label>
+   745→                            ))}
+   746→                          </div>
+   747→                        </div>
+   748→                        <div className="flex justify-end gap-2 pt-1">
+   749→                          <Button
+   750→                            size="sm"
+   751→                            variant="ghost"
+   752→                            className="text-xs h-7 sm:h-8 sm:text-sm"
+   753→                            onClick={() => {
+   754→                              setShowAddReminder(false)
+   755→                              setNewReminder({ title: '', message: '', time: '09:00', days: [1, 2, 3, 4, 5] })
+   756→                            }}
+   757→                          >
+   758→                            Cancel
+   759→                          </Button>
+   760→                          <Button
+   761→                            size="sm"
+   762→                            className="text-xs h-7 sm:h-8 sm:text-sm bg-red-600 hover:bg-red-700"
+   763→                            onClick={handleCreateReminder}
+   764→                            disabled={!newReminder.title || newReminder.days.length === 0}
+   765→                          >
+   766→                            Save
+   767→                          </Button>
+   768→                        </div>
+   769→                      </div>
+   770→                    )}
+   771→
+   772→                    {/* Reminders List */}
+   773→                    {remindersLoading ? (
+   774→                      <div className="flex items-center justify-center py-3">
+   775→                        <Loader2 className="h-4 w-4 animate-spin text-neutral-400" />
+   776→                      </div>
+   777→                    ) : reminders.length === 0 && !showAddReminder ? (
+   778→                      <p className="text-xs text-neutral-400 pl-6">No custom reminders yet. Add one to get started.</p>
+   779→                    ) : (
+   780→                      <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
+   781→                        {reminders.map(reminder => {
+   782→                          const reminderDays = (() => {
+   783→                            try { return JSON.parse(reminder.days) as number[] } catch { return [] }
+   784→                          })()
+   785→                          return (
+   786→                            <div
+   787→                              key={reminder.id}
+   788→                              className={`flex items-center gap-2 p-2.5 rounded-md border border-neutral-200 dark:border-neutral-700 ${!reminder.active ? 'opacity-50' : ''}`}
+   789→                            >
+   790→                              <Switch
+   791→                                checked={reminder.active}
+   792→                                onCheckedChange={(checked) => handleToggleReminder(reminder.id, checked)}
+   793→                                className="scale-75"
+   794→                              />
+   795→                              <div className="flex-1 min-w-0">
+   796→                                <div className="text-sm font-medium text-neutral-800 dark:text-neutral-200 truncate">{reminder.title}</div>
+   797→                                <div className="flex items-center gap-2 mt-0.5">
+   798→                                  <span className="text-[10px] text-neutral-500 whitespace-nowrap">{reminder.time}</span>
+   799→                                  <span className="text-[10px] text-neutral-400">
+   800→                                    {reminderDays.map(d => DAY_LABELS.find(l => l.value === d)?.label).filter(Boolean).join(', ')}
+   801→                                  </span>
+   802→                                </div>
+   803→                                {reminder.message && (
+   804→                                  <p className="text-[10px] text-neutral-400 truncate mt-0.5">{reminder.message}</p>
+   805→                                )}
+   806→                              </div>
+   807→                              <Button
+   808→                                size="sm"
+   809→                                variant="ghost"
+   810→                                className="h-7 w-7 p-0 text-neutral-400 hover:text-rose-500 sm:h-8 sm:w-8"
+   811→                                onClick={() => handleDeleteReminder(reminder.id)}
+   812→                              >
+   813→                                <Trash2 className="h-3.5 w-3.5" />
+   814→                              </Button>
+   815→                            </div>
+   816→                          )
+   817→                        })}
+   818→                      </div>
+   819→                    )}
+   820→                  </div>
+   821→                </motion.div>
+   822→              </TabsContent>
+   823→            )}
+   824→
+   825→            {/* Appearance Tab */}
+   826→            {activeTab === 'appearance' && (
+   827→              <TabsContent value="appearance" className="mt-4 space-y-4" forceMount>
+   828→                <motion.div
+   829→                  key="appearance-content"
+   830→                  variants={tabContentVariants}
+   831→                  initial="hidden"
+   832→                  animate="visible"
+   833→                  exit="exit"
+   834→                  className="space-y-4"
+   835→                >
+   836→                  <div className="space-y-3 p-4 rounded-lg border border-neutral-200 dark:border-neutral-700">
+   837→                    <div className="flex items-center gap-2 mb-2">
+   838→                      <Sun className="h-4 w-4 text-red-500" />
+   839→                      <span className="text-sm font-medium text-neutral-800 dark:text-neutral-200">Theme</span>
+   840→                    </div>
+   841→                    <p className="text-xs leading-relaxed text-neutral-500 dark:text-neutral-400 mb-3">Choose how Praise OS looks. System follows your device settings.</p>
+   842→                    <div className="grid grid-cols-3 gap-2">
+   843→                      <button
+   844→                        onClick={() => {
+   845→                          setTheme('light')
+   846→                          updateSetting('darkMode', false)
+   847→                        }}
+   848→                        className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all ${
+   849→                          theme === 'light'
+   850→                            ? 'border-red-500 bg-red-50 dark:bg-red-950/30'
+   851→                            : 'border-neutral-200 dark:border-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600'
+   852→                        }`}
+   853→                      >
+   854→                        <Sun className={`h-5 w-5 ${theme === 'light' ? 'text-red-600' : 'text-neutral-400'}`} />
+   855→                        <span className={`text-xs font-medium ${theme === 'light' ? 'text-red-700 dark:text-red-400' : 'text-neutral-600 dark:text-neutral-400'}`}>Light</span>
+   856→                      </button>
+   857→                      <button
+   858→                        onClick={() => {
+   859→                          setTheme('dark')
+   860→                          updateSetting('darkMode', true)
+   861→                        }}
+   862→                        className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all ${
+   863→                          theme === 'dark'
+   864→                            ? 'border-red-500 bg-red-50 dark:bg-red-950/30'
+   865→                            : 'border-neutral-200 dark:border-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600'
+   866→                        }`}
+   867→                      >
+   868→                        <Moon className={`h-5 w-5 ${theme === 'dark' ? 'text-red-600' : 'text-neutral-400'}`} />
+   869→                        <span className={`text-xs font-medium ${theme === 'dark' ? 'text-red-700 dark:text-red-400' : 'text-neutral-600 dark:text-neutral-400'}`}>Dark</span>
+   870→                      </button>
+   871→                      <button
+   872→                        onClick={() => {
+   873→                          setTheme('system')
+   874→                          updateSetting('darkMode', false)
+   875→                        }}
+   876→                        className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all ${
+   877→                          theme === 'system'
+   878→                            ? 'border-red-500 bg-red-50 dark:bg-red-950/30'
+   879→                            : 'border-neutral-200 dark:border-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600'
+   880→                        }`}
+   881→                      >
+   882→                        <Monitor className={`h-5 w-5 ${theme === 'system' ? 'text-red-600' : 'text-neutral-400'}`} />
+   883→                        <span className={`text-xs font-medium ${theme === 'system' ? 'text-red-700 dark:text-red-400' : 'text-neutral-600 dark:text-neutral-400'}`}>System</span>
+   884→                      </button>
+   885→                    </div>
+   886→                  </div>
+   887→                </motion.div>
+   888→              </TabsContent>
+   889→            )}
+   890→
+   891→            {/* Features Tab */}
+   892→            {activeTab === 'features' && (
+   893→              <TabsContent value="features" className="mt-4 space-y-4" forceMount>
+   894→                <motion.div
+   895→                  key="features-content"
+   896→                  variants={tabContentVariants}
+   897→                  initial="hidden"
+   898→                  animate="visible"
+   899→                  exit="exit"
+   900→                  className="space-y-4"
+   901→                >
+   902→                  <div className="flex items-center justify-between p-4 rounded-lg border border-neutral-200 dark:border-neutral-700">
+   903→                    <div className="flex items-center gap-2">
+   904→                      <Bell className="h-4 w-4 text-red-500" />
+   905→                      <span className="text-sm font-medium text-neutral-800 dark:text-neutral-200">Notifications</span>
+   906→                    </div>
+   907→                    <Switch
+   908→                      checked={localSettings.notificationsEnabled}
+   909→                      onCheckedChange={(v) => updateSetting('notificationsEnabled', v)}
+   910→                    />
+   911→                  </div>
+   912→
+   913→                  <div className="flex items-center justify-between p-4 rounded-lg border border-neutral-200 dark:border-neutral-700">
+   914→                    <div className="flex items-center gap-2">
+   915→                      <Mic className="h-4 w-4 text-red-500" />
+   916→                      <span className="text-sm font-medium text-neutral-800 dark:text-neutral-200">Voice Notes</span>
+   917→                    </div>
+   918→                    <Switch
+   919→                      checked={localSettings.voiceNotesEnabled}
+   920→                      onCheckedChange={(v) => updateSetting('voiceNotesEnabled', v)}
+   921→                    />
+   922→                  </div>
+   923→
+   924→                  <div className="flex items-center justify-between p-4 rounded-lg border border-neutral-200 dark:border-neutral-700">
+   925→                    <div className="flex items-center gap-2">
+   926→                      <Camera className="h-4 w-4 text-red-500" />
+   927→                      <span className="text-sm font-medium text-neutral-800 dark:text-neutral-200">Image Upload</span>
+   928→                    </div>
+   929→                    <Switch
+   930→                      checked={localSettings.imageUploadEnabled}
+   931→                      onCheckedChange={(v) => updateSetting('imageUploadEnabled', v)}
+   932→                    />
+   933→                  </div>
+   934→                </motion.div>
+   935→              </TabsContent>
+   936→            )}
+   937→
+   938→            {/* Integrations Tab */}
+   939→            {activeTab === 'integrations' && (
+   940→              <TabsContent value="integrations" className="mt-4 space-y-4" forceMount>
+   941→                <motion.div
+   942→                  key="integrations-content"
+   943→                  variants={tabContentVariants}
+   944→                  initial="hidden"
+   945→                  animate="visible"
+   946→                  exit="exit"
+   947→                  className="space-y-4"
+   948→                >
+   949→                  {/* Google Connection Status */}
+   950→                  <div className="p-4 rounded-lg border border-neutral-200 dark:border-neutral-700">
+   951→                    <div className="flex items-center justify-between mb-3">
+   952→                      <div className="flex items-center gap-2">
+   953→                        <Calendar className="h-4 w-4 text-red-500" />
+   954→                        <span className="text-sm font-medium text-neutral-800 dark:text-neutral-200">Google Calendar</span>
+   955→                      </div>
+   956→                      <div className="flex items-center gap-2">
+   957→                        {googleEnvConfigured === false && !googleConnected && (
+   958→                          <Badge variant="outline" className="text-[9px] px-1.5 py-0.5 text-rose-600 border-rose-300 dark:border-rose-700 dark:text-rose-400">
+   959→                            Env vars not set
+   960→                          </Badge>
+   961→                        )}
+   962→                        {googleConnected ? (
+   963→                          <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 text-[10px] px-2 py-0.5">
+   964→                            <CheckCircle2 className="h-3 w-3 mr-1" />
+   965→                            Connected
+   966→                          </Badge>
+   967→                        ) : (
+   968→                          <Badge variant="outline" className="text-[10px] px-2 py-0.5 text-neutral-500 dark:border-neutral-600 dark:text-neutral-400">
+   969→                            Disconnected
+   970→                          </Badge>
+   971→                        )}
+   972→                      </div>
+   973→                    </div>
+   974→
+   975→                    {/* Success message from OAuth callback */}
+   976→                    {googleSuccess && (
+   977→                      <div className="flex items-center gap-2 text-xs text-red-600 dark:text-red-400 mb-3 p-2 rounded-md bg-red-50 dark:bg-red-900/20">
+   978→                        <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+   979→                        <span>{googleSuccess}</span>
+   980→                      </div>
+   981→                    )}
+   982→
+   983→                    {/* Error message */}
+   984→                    {googleError && (
+   985→                      <div className="flex items-start gap-2 text-xs text-red-600 dark:text-red-400 mb-3 p-2 rounded-md bg-red-50 dark:bg-red-900/20">
+   986→                        <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+   987→                        <span>{googleError}</span>
+   988→                      </div>
+   989→                    )}
+   990→
+   991→                    {/* Env vars status indicator */}
+   992→                    {googleEnvConfigured === null && !googleConnected && (
+   993→                      <div className="flex items-center gap-2 text-xs text-neutral-400 dark:text-neutral-500 mb-3">
+   994→                        <Loader2 className="h-3 w-3 animate-spin" />
+   995→                        Checking Google configuration...
+   996→                      </div>
+   997→                    )}
+   998→
+   999→                    {googleConnected ? (
+  1000→                      <Button
+  1001→                        variant="outline"
+  1002→                        size="sm"
+  1003→                        className="text-xs h-7 sm:h-8 sm:text-sm gap-1.5 w-full text-red-600 border-red-200 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/30"
+  1004→                        onClick={handleDisconnectGoogle}
+  1005→                      >
+  1006→                        <Unlink className="h-3.5 w-3.5" />
+  1007→                        Disconnect Google
+  1008→                      </Button>
+  1009→                    ) : (
+  1010→                      <>
+  1011→                        <Button
+  1012→                          size="sm"
+  1013→                          className="text-xs h-7 sm:h-8 sm:text-sm gap-1.5 w-full bg-red-600 hover:bg-red-700 text-white"
+  1014→                          onClick={handleConnectGoogle}
+  1015→                          disabled={googleConnectLoading || googleEnvConfigured === false}
+  1016→                        >
+  1017→                          {googleConnectLoading ? (
+  1018→                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+  1019→                          ) : (
+  1020→                            <Link2 className="h-3.5 w-3.5" />
+  1021→                          )}
+  1022→                          Connect Google
+  1023→                        </Button>
+  1024→                        {googleEnvConfigured === false && (
+  1025→                          <p className="text-[10px] text-red-500 dark:text-red-400 mt-2 leading-tight">
+  1026→                            Google OAuth is not configured. Set <code className="px-1 py-0.5 bg-red-50 dark:bg-red-900/30 rounded text-[9px] font-mono">GOOGLE_CLIENT_ID</code> and <code className="px-1 py-0.5 bg-red-50 dark:bg-red-900/30 rounded text-[9px] font-mono">GOOGLE_CLIENT_SECRET</code> environment variables to enable Google integration.
+  1027→                          </p>
+  1028→                        )}
+  1029→                        {googleEnvConfigured === true && (
+  1030→                          <p className="text-[10px] text-rose-600 dark:text-rose-400 mt-2 leading-tight">
+  1031→                            Make sure <code className="px-1 py-0.5 bg-rose-50 dark:bg-rose-900/30 rounded text-[9px] font-mono break-all">{typeof window !== 'undefined' ? `${window.location.origin}/api/google/callback` : 'https://your-domain.com/api/google/callback'}</code> is added as an <strong>Authorized redirect URI</strong> in your Google Cloud Console OAuth settings.
+  1032→                          </p>
+  1033→                        )}
+  1034→                      </>
+  1035→                    )}
+  1036→                  </div>
+  1037→
+  1038→                  {/* Auto-create Calendar Reminders Toggle */}
+  1039→                  <div className="space-y-3 p-4 rounded-lg border border-neutral-200 dark:border-neutral-700">
+  1040→                    <div className="flex items-center justify-between">
+  1041→                      <div>
+  1042→                        <div className="flex items-center gap-2">
+  1043→                          <RefreshCw className="h-4 w-4 text-red-500" />
+  1044→                          <span className="text-sm font-medium text-neutral-800 dark:text-neutral-200">Auto-create calendar reminders</span>
+  1045→                        </div>
+  1046→                        <p className="text-xs leading-relaxed text-neutral-400 dark:text-neutral-500 mt-1">
+  1047→                          Create recurring Google Calendar events with reminders for each check-in window
+  1048→                        </p>
+  1049→                      </div>
+  1050→                      <Switch
+  1051→                        checked={localSettings.googleCalendarEnabled}
+  1052→                        onCheckedChange={handleSyncCalendarReminders}
+  1053→                        disabled={!googleConnected || syncLoading}
+  1054→                      />
+  1055→                    </div>
+  1056→                    {syncLoading && (
+  1057→                      <div className="flex items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400 pl-6">
+  1058→                        <Loader2 className="h-3 w-3 animate-spin text-red-600" />
+  1059→                        Syncing check-in events to Google Calendar...
+  1060→                      </div>
+  1061→                    )}
+  1062→                    {syncResult && (
+  1063→                      <div className={`flex items-center gap-2 text-xs pl-6 ${syncResult.success ? 'text-red-600 dark:text-red-400' : 'text-red-800 dark:text-red-300'}`}>
+  1064→                        {syncResult.success ? <CheckCircle2 className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
+  1065→                        {syncResult.message}
+  1066→                      </div>
+  1067→                    )}
+  1068→                    {!googleConnected && (
+  1069→                      <p className="text-[10px] text-neutral-400 dark:text-neutral-500 pl-6">Connect Google first to enable calendar sync</p>
+  1070→                    )}
+  1071→                  </div>
+  1072→
+  1073→                  {/* Email Reminders Toggle */}
+  1074→                  <div className="space-y-3 p-4 rounded-lg border border-neutral-200 dark:border-neutral-700">
+  1075→                    <div className="flex items-center justify-between">
+  1076→                      <div>
+  1077→                        <div className="flex items-center gap-2">
+  1078→                          <Mail className="h-4 w-4 text-red-500" />
+  1079→                          <span className="text-sm font-medium text-neutral-800 dark:text-neutral-200">Email reminders for check-ins</span>
+  1080→                        </div>
+  1081→                        <p className="text-xs leading-relaxed text-neutral-400 dark:text-neutral-500 mt-1">
+  1082→                          Send email notifications before each check-in window via Gmail
+  1083→                        </p>
+  1084→                      </div>
+  1085→                      <Switch
+  1086→                        checked={localSettings.googleEmailReminders}
+  1087→                        onCheckedChange={(v) => updateSetting('googleEmailReminders', v)}
+  1088→                        disabled={!googleConnected}
+  1089→                      />
+  1090→                    </div>
+  1091→                    {!googleConnected && (
+  1092→                      <p className="text-[10px] text-neutral-400 dark:text-neutral-500 pl-6">Connect Google first to enable email reminders</p>
+  1093→                    )}
+  1094→                  </div>
+  1095→
+  1096→                  {/* Reminder Email Address */}
+  1097→                  <div className="p-4 rounded-lg border border-neutral-200 dark:border-neutral-700">
+  1098→                    <Label htmlFor="reminder-email" className="text-xs text-neutral-500 dark:text-neutral-400">
+  1099→                      Reminder email address
+  1100→                    </Label>
+  1101→                    <Input
+  1102→                      id="reminder-email"
+  1103→                      type="email"
+  1104→                      placeholder="your@email.com"
+  1105→                      value={localSettings.googleReminderEmail || ''}
+  1106→                      onChange={(e) => updateSetting('googleReminderEmail', e.target.value)}
+  1107→                      className="text-sm h-8 mt-1"
+  1108→                      disabled={!googleConnected}
+  1109→                    />
+  1110→                    <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">
+  1111→                      Where to send check-in reminder emails
+  1112→                    </p>
+  1113→                  </div>
+  1114→
+  1115→                  {/* Voice Transcription */}
+  1116→                  <div className="p-4 rounded-lg border border-neutral-200 dark:border-neutral-700">
+  1117→                    <div className="flex items-center gap-2 mb-2">
+  1118→                      <Key className="h-4 w-4 text-red-500" />
+  1119→                      <span className="text-sm font-medium text-neutral-800 dark:text-neutral-200">Voice Transcription</span>
+  1120→                    </div>
+  1121→                    <p className="text-xs leading-relaxed text-neutral-500 dark:text-neutral-400 mb-2">
+  1122→                      Voice notes are transcribed using the built-in AI speech recognition engine. Works automatically with no additional setup required.
+  1123→                    </p>
+  1124→                    <div className="space-y-1.5">
+  1125→                      <p className="text-[10px] text-neutral-400 dark:text-neutral-500">
+  1126→                        <strong>Primary:</strong> AI-powered transcription for high accuracy across all browsers.
+  1127→                      </p>
+  1128→                      <p className="text-[10px] text-neutral-400 dark:text-neutral-500">
+  1129→                        <strong>Fallback:</strong> Browser&apos;s built-in speech recognition (Chrome/Edge only, less accurate).
+  1130→                      </p>
+  1131→                    </div>
+  1132→                  </div>
+  1133→                </motion.div>
+  1134→              </TabsContent>
+  1135→            )}
+  1136→
+  1137→            {/* Data Export Tab */}
+  1138→            {activeTab === 'data' && (
+  1139→              <TabsContent value="data" className="mt-4 space-y-4" forceMount>
+  1140→                <motion.div
+  1141→                  key="data-content"
+  1142→                  variants={tabContentVariants}
+  1143→                  initial="hidden"
+  1144→                  animate="visible"
+  1145→                  exit="exit"
+  1146→                  className="space-y-4"
+  1147→                >
+  1148→                  {/* Storage Overview */}
+  1149→                  <Card className="shadow-sm border-red-100 dark:border-red-900/30">
+  1150→                    <CardContent className="p-4">
+  1151→                      <div className="flex items-center justify-between mb-3">
+  1152→                        <div className="flex items-center gap-2">
+  1153→                          <Database className="h-4 w-4 text-red-600" />
+  1154→                          <h3 className="text-sm font-semibold">Storage Overview</h3>
+  1155→                        </div>
+  1156→                        <Button
+  1157→                          size="sm"
+  1158→                          variant="ghost"
+  1159→                          className="h-7 text-xs"
+  1160→                          onClick={fetchStorageData}
+  1161→                          disabled={storageLoading}
+  1162→                        >
+  1163→                          {storageLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+  1164→                        </Button>
+  1165→                      </div>
+  1166→
+  1167→                      {storageData ? (
+  1168→                        <>
+  1169→                          <div className="grid grid-cols-2 gap-3 mb-3">
+  1170→                            <div className="bg-red-50 dark:bg-red-950/20 rounded-lg p-3">
+  1171→                              <p className="text-[10px] text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">Total Records</p>
+  1172→                              <p className="text-xl font-bold text-red-700 dark:text-red-400">{storageData.totalRecords.toLocaleString()}</p>
+  1173→                            </div>
+  1174→                            <div className="bg-red-50 dark:bg-red-950/20 rounded-lg p-3">
+  1175→                              <p className="text-[10px] text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">Database Size</p>
+  1176→                              <p className="text-xl font-bold text-red-700 dark:text-red-400">{storageData.dbSizeFormatted}</p>
+  1177→                            </div>
+  1178→                          </div>
+  1179→
+  1180→                          <div className="bg-neutral-50 dark:bg-neutral-900 rounded-lg p-3 mb-3">
+  1181→                            <p className="text-[10px] text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Storage Type</p>
+  1182→                            <p className="text-xs font-medium text-neutral-700 dark:text-neutral-300">{storageData.storageInfo.type}</p>
+  1183→                          </div>
+  1184→
+  1185→                          <p className="text-xs leading-relaxed text-neutral-500 dark:text-neutral-400 mb-2">
+  1186→                            {storageData.storageInfo.description}
+  1187→                          </p>
+  1188→                          <div className="bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/30 rounded-lg p-3">
+  1189→                            <p className="text-xs leading-relaxed text-red-700 dark:text-red-300 font-medium">
+  1190→                              {storageData.storageInfo.recommendation}
+  1191→                            </p>
+  1192→                          </div>
+  1193→
+  1194→                          {/* Breakdown by table */}
+  1195→                          <div className="mt-3 max-h-48 overflow-y-auto">
+  1196→                            <p className="text-[10px] text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-2">Records by Category</p>
+  1197→                            <div className="space-y-1">
+  1198→                              {storageData.tables.filter(t => t.count > 0).map(table => (
+  1199→                                <div key={table.name} className="flex items-center justify-between text-xs">
+  1200→                                  <span className="text-neutral-600 dark:text-neutral-400">{table.name}</span>
+  1201→                                  <span className="font-medium text-neutral-700 dark:text-neutral-300">{table.count.toLocaleString()}</span>
+  1202→                                </div>
+  1203→                              ))}
+  1204→                              {storageData.tables.filter(t => t.count > 0).length === 0 && (
+  1205→                                <p className="text-xs text-neutral-400 italic">No records yet</p>
+  1206→                              )}
+  1207→                            </div>
+  1208→                          </div>
+  1209→                        </>
+  1210→                      ) : storageLoading ? (
+  1211→                        <div className="flex items-center justify-center py-6">
+  1212→                          <Loader2 className="h-5 w-5 animate-spin text-red-600" />
+  1213→                        </div>
+  1214→                      ) : (
+  1215→                        <p className="text-xs text-neutral-400">Unable to load storage data.</p>
+  1216→                      )}
+  1217→                    </CardContent>
+  1218→                  </Card>
+  1219→
+  1220→                  <div>
+  1221→                    <h3 className="text-sm font-semibold flex items-center gap-2">
+  1222→                      <Download className="h-4 w-4 text-red-600" />
+  1223→                      Download Your Data
+  1224→                    </h3>
+  1225→                    <p className="text-xs leading-relaxed text-neutral-500 mt-1">
+  1226→                      Export your data as CSV or JSON files. Your data stays yours.
+  1227→                    </p>
+  1228→                  </div>
+  1229→
+  1230→                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+  1231→                    {exportOptions.map(opt => (
+  1232→                      <Card key={opt.type} className="shadow-sm">
+  1233→                        <CardContent className="p-4">
+  1234→                          <div className="flex items-center gap-3 mb-3">
+  1235→                            <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center">
+  1236→                              {opt.icon}
+  1237→                            </div>
+  1238→                            <div>
+  1239→                              <h4 className="text-sm font-medium">{opt.label}</h4>
+  1240→                              <p className="text-[10px] text-neutral-400">{opt.desc}</p>
+  1241→                            </div>
+  1242→                          </div>
+  1243→                          <div className="flex gap-2">
+  1244→                            <Button
+  1245→                              size="sm"
+  1246→                              variant="outline"
+  1247→                              className="text-xs h-7 sm:h-8 sm:text-sm flex-1"
+  1248→                              disabled={exportLoading === `${opt.type}-csv`}
+  1249→                              onClick={() => handleExport(opt.type, 'csv')}
+  1250→                            >
+  1251→                              {exportLoading === `${opt.type}-csv` ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+  1252→                              CSV
+  1253→                            </Button>
+  1254→                            <Button
+  1255→                              size="sm"
+  1256→                              variant="outline"
+  1257→                              className="text-xs h-7 sm:h-8 sm:text-sm flex-1"
+  1258→                              disabled={exportLoading === `${opt.type}-json`}
+  1259→                              onClick={() => handleExport(opt.type, 'json')}
+  1260→                            >
+  1261→                              {exportLoading === `${opt.type}-json` ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+  1262→                              JSON
+  1263→                            </Button>
+  1264→                          </div>
+  1265→                        </CardContent>
+  1266→                      </Card>
+  1267→                    ))}
+  1268→                  </div>
+  1269→                </motion.div>
+  1270→              </TabsContent>
+  1271→            )}
+  1272→
+  1273→            {/* Security Tab */}
+  1274→            {activeTab === 'security' && (
+  1275→              <TabsContent value="security" className="mt-4" forceMount>
+  1276→                <motion.div
+  1277→                  key="security-content"
+  1278→                  variants={tabContentVariants}
+  1279→                  initial="hidden"
+  1280→                  animate="visible"
+  1281→                  exit="exit"
+  1282→                >
+  1283→                    {success ? (
+  1284→                      <div className="flex flex-col items-center py-6 gap-3">
+  1285→                        <CheckCircle2 className="h-12 w-12 text-red-500" />
+  1286→                        <p className="text-sm font-medium text-red-700">Access code updated successfully</p>
+  1287→                      </div>
+  1288→                    ) : (
+  1289→                      <form onSubmit={handleSubmit} className="space-y-4">
+  1290→                        <div className="space-y-2">
+  1291→                          <Label htmlFor="current-code">Current Access Code</Label>
+  1292→                          <Input
+  1293→                            id="current-code"
+  1294→                            type="password"
+  1295→                            placeholder="Enter current code"
+  1296→                            value={currentCode}
+  1297→                            onChange={(e) => { setCurrentCode(e.target.value); setError('') }}
+  1298→                            autoFocus
+  1299→                          />
+  1300→                        </div>
+  1301→                        <div className="space-y-2">
+  1302→                          <Label htmlFor="new-code">New Access Code</Label>
+  1303→                          <Input
+  1304→                            id="new-code"
+  1305→                            type="password"
+  1306→                            placeholder="Enter new code (min 4 characters)"
+  1307→                            value={newCode}
+  1308→                            onChange={(e) => { setNewCode(e.target.value); setError('') }}
+  1309→                          />
+  1310→                        </div>
+  1311→                        <div className="space-y-2">
+  1312→                          <Label htmlFor="confirm-code">Confirm New Access Code</Label>
+  1313→                          <Input
+  1314→                            id="confirm-code"
+  1315→                            type="password"
+  1316→                            placeholder="Re-enter new code"
+  1317→                            value={confirmCode}
+  1318→                            onChange={(e) => { setConfirmCode(e.target.value); setError('') }}
+  1319→                          />
+  1320→                        </div>
+  1321→                        {error && (
+  1322→                          <div className="flex items-center gap-2 text-red-600 text-sm">
+  1323→                            <AlertCircle className="h-4 w-4 shrink-0" />
+  1324→                            <span>{error}</span>
+  1325→                          </div>
+  1326→                        )}
+  1327→                        <DialogFooter>
+  1328→                          <Button
+  1329→                            type="submit"
+  1330→                            disabled={loading || !currentCode || !newCode || !confirmCode}
+  1331→                            className="bg-red-600 hover:bg-red-700 text-white h-7 sm:h-8 text-xs sm:text-sm"
+  1332→                          >
+  1333→                            {loading ? (
+  1334→                              <><Loader2 className="h-4 w-4 animate-spin mr-2" />Updating...</>
+  1335→                            ) : 'Update Code'}
+  1336→                          </Button>
+  1337→                        </DialogFooter>
+  1338→                      </form>
+  1339→                    )}
+  1340→                </motion.div>
+  1341→              </TabsContent>
+  1342→            )}
+  1343→          </AnimatePresence>
+  1344→        </Tabs>
+  1345→      </DialogContent>
+  1346→    </Dialog>
+  1347→  )
+  1348→}
+  1349→

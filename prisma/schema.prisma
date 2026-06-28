@@ -138,7 +138,7 @@ model JournalEntry {
 model LifeAreaProgress {
   id          String   @id @default(cuid())
   area        String   // faith, health, career, havilah, finances, relationships, personalGrowth
-  currentStatus String? // Where User currently is in this area
+  currentStatus String? // Where Praise currently is in this area
   idealVision String?   // The ideal/2026 vision for this area
   keyActions  String?   // JSON array of key actions needed
   blockers    String?   // What's blocking progress
