@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Sparkles, ArrowRight, CheckCircle2, ShieldCheck, User } from 'lucide-react'
 import { Input } from '@/components/ui/input'
@@ -9,23 +9,62 @@ import { useAppStore } from '@/lib/store'
 
 const DEEP_GRADIENT = 'bg-gradient-to-br from-black via-neutral-950 to-red-950/40 ambient-gradient'
 
-type AuthStep = 'checking' | 'setup-name' | 'setup-code' | 'login' | 'success'
+type AuthStep = 'boot' | 'checking' | 'setup-name' | 'setup-code' | 'login' | 'success'
+
+// Boot sequence lines — PraiseOS-style
+const BOOT_LINES = [
+  { text: 'Initializing system...', ok: true, delay: 0 },
+  { text: 'Loading Life OS kernel...', ok: true, delay: 400 },
+  { text: 'Mounting database...', ok: true, delay: 800 },
+  { text: 'Starting alignment engine...', ok: true, delay: 1200 },
+  { text: 'System ready.', ok: true, delay: 1600 },
+]
 
 export function AuthGate() {
   const { setIsAuthenticated, setUserName, setOsName, setIsSetupComplete } = useAppStore()
-  const [step, setStep] = useState<AuthStep>('checking')
+  const [step, setStep] = useState<AuthStep>('boot')
   const [code, setCode] = useState('')
   const [name, setName] = useState('')
   const [osNamePreview, setOsNamePreview] = useState('MyOS')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [isSetUp, setIsSetUp] = useState<boolean | null>(null)
+  const [bootLineIndex, setBootLineIndex] = useState(-1)
+  const [storedOsName, setStoredOsName] = useState('MyOS')
+  const checkRan = useRef(false)
 
-  // Check if already authenticated or if auth is set up
+  // ─── Boot animation ───
   useEffect(() => {
+    if (step !== 'boot') return
+
+    let timeout: ReturnType<typeof setTimeout>
+    let currentIndex = -1
+
+    const showNext = () => {
+      currentIndex++
+      if (currentIndex < BOOT_LINES.length) {
+        setBootLineIndex(currentIndex)
+        timeout = setTimeout(showNext, 450)
+      } else {
+        // Boot done — transition to checking
+        timeout = setTimeout(() => setStep('checking'), 300)
+      }
+    }
+
+    timeout = setTimeout(showNext, 300)
+
+    return () => clearTimeout(timeout)
+  }, [step])
+
+  // ─── Check if already authenticated or if auth is set up ───
+  useEffect(() => {
+    if (step !== 'checking') return
+    if (checkRan.current) return
+    checkRan.current = true
+
     const sessionAuth = localStorage.getItem('myos-auth')
     if (sessionAuth === 'true') {
-      // Also load user profile
+      // Already authenticated in this session — load profile and enter
       const loadProfile = async () => {
         try {
           const res = await fetch('/api/user-profile')
@@ -33,6 +72,7 @@ export function AuthGate() {
           if (data.userName) {
             setUserName(data.userName)
             setOsName(data.osName || `${data.userName}OS`)
+            setStoredOsName(data.osName || `${data.userName}OS`)
           }
           if (data.isSetupComplete) {
             setIsSetupComplete(true)
@@ -47,22 +87,25 @@ export function AuthGate() {
     // Check if auth is set up
     const checkAuth = async () => {
       try {
-        const res = await fetch('/api/auth')
-        const data = await res.json()
-        setIsSetUp(data.isSetUp)
-
-        // Also check if user profile is set up
-        const profileRes = await fetch('/api/user-profile')
+        const [authRes, profileRes] = await Promise.all([
+          fetch('/api/auth'),
+          fetch('/api/user-profile'),
+        ])
+        const authData = await authRes.json()
         const profileData = await profileRes.json()
 
-        if (!data.isSetUp) {
-          // First time - need full setup
-          setStep('setup-name')
-        } else if (!profileData.isSetupComplete) {
-          // Auth exists but no profile - need name setup
+        setIsSetUp(authData.isSetUp)
+
+        // Store the OS name for the login screen
+        if (profileData.osName && profileData.osName !== 'MyOS') {
+          setStoredOsName(profileData.osName)
+        }
+
+        if (!authData.isSetUp || !profileData.isSetupComplete) {
+          // Brand new user — show setup flow (name first, then code)
           setStep('setup-name')
         } else {
-          // Returning user - just login
+          // Returning user — show login with their personalized OS name
           setStep('login')
         }
       } catch {
@@ -71,7 +114,7 @@ export function AuthGate() {
       }
     }
     checkAuth()
-  }, [setIsAuthenticated, setUserName, setOsName, setIsSetupComplete])
+  }, [step, setIsAuthenticated, setUserName, setOsName, setIsSetupComplete])
 
   // Update OS name preview when name changes
   useEffect(() => {
@@ -82,7 +125,7 @@ export function AuthGate() {
     }
   }, [name])
 
-  // Handle name submission (first run)
+  // Handle name submission (first run setup — step 1)
   const handleNameSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault()
     if (!name.trim() || name.trim().length < 2) {
@@ -105,6 +148,7 @@ export function AuthGate() {
       if (res.ok && data.success) {
         setUserName(data.userName)
         setOsName(data.osName)
+        setStoredOsName(data.osName)
         setIsSetupComplete(true)
         setStep('setup-code')
       } else {
@@ -117,7 +161,7 @@ export function AuthGate() {
     }
   }, [name, setUserName, setOsName, setIsSetupComplete])
 
-  // Handle access code submission
+  // Handle access code submission (setup or login)
   const handleCodeSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault()
     if (!code.trim()) {
@@ -154,7 +198,47 @@ export function AuthGate() {
     }
   }, [code, setIsAuthenticated])
 
-  // Checking state
+  // ─── Boot screen ───
+  if (step === 'boot') {
+    return (
+      <div className={`fixed inset-0 z-[100] flex items-center justify-center ${DEEP_GRADIENT}`} style={{ height: '100vh', height: '100dvh' }}>
+        <div className="w-full max-w-md px-8">
+          {/* ASCII-style OS logo */}
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="mb-8 text-center"
+          >
+            <h1 className="text-3xl font-mono font-bold text-red-500 tracking-wider">LIFE OS</h1>
+            <p className="text-neutral-500 font-mono text-xs mt-1">v2.0 — Alignment Engine</p>
+          </motion.div>
+
+          {/* Boot lines */}
+          <div className="font-mono text-sm space-y-1.5">
+            {BOOT_LINES.map((line, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, x: -10 }}
+                animate={bootLineIndex >= i ? { opacity: 1, x: 0 } : { opacity: 0, x: -10 }}
+                transition={{ duration: 0.25 }}
+                className="flex items-center gap-2"
+              >
+                <span className="text-neutral-500">[</span>
+                <span className={line.ok ? 'text-green-500 font-bold' : 'text-red-500 font-bold'}>
+                  {bootLineIndex >= i ? '  OK  ' : '     '}
+                </span>
+                <span className="text-neutral-500">]</span>
+                <span className="text-neutral-300">{line.text}</span>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ─── Checking state ───
   if (step === 'checking') {
     return (
       <div className={`fixed inset-0 z-[100] flex items-center justify-center ${DEEP_GRADIENT}`} style={{ height: '100vh', height: '100dvh' }}>
@@ -338,7 +422,7 @@ export function AuthGate() {
               className="relative z-10 w-full max-w-md mx-4"
             >
               <div className="bg-white/[0.04] backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl shadow-black/50 p-8 md:p-10">
-                {/* Logo */}
+                {/* Logo — shows personalized OS name */}
                 <motion.div
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -370,14 +454,14 @@ export function AuthGate() {
                   >
                     <div>
                       <label
-                        htmlFor="access-code"
+                        htmlFor="setup-access-code"
                         className="flex items-center justify-center gap-1.5 text-sm font-medium text-neutral-100 mb-2.5 tracking-wide"
                       >
                         <ShieldCheck className="h-3.5 w-3.5 text-red-400" />
                         Create Your Access Code
                       </label>
                       <Input
-                        id="access-code"
+                        id="setup-access-code"
                         type="password"
                         placeholder="Choose an access code"
                         value={code}
@@ -462,7 +546,7 @@ export function AuthGate() {
               className="relative z-10 w-full max-w-md mx-4"
             >
               <div className="bg-white/[0.04] backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl shadow-black/50 p-8 md:p-10">
-                {/* Logo */}
+                {/* Logo — shows the USER'S personalized OS name */}
                 <motion.div
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -477,7 +561,7 @@ export function AuthGate() {
                     <Sparkles className="h-10 w-10 text-red-400 relative z-10" />
                   </motion.div>
                   <h1 className="text-3xl font-bold text-white tracking-tight">
-                    MyOS
+                    {storedOsName}
                   </h1>
                   <p className="text-neutral-400 text-[11px] mt-1.5 tracking-[0.18em] uppercase">
                     Life Operating System
@@ -588,7 +672,7 @@ export function AuthGate() {
               transition={{ delay: 0.4 }}
               className="text-white text-lg font-medium"
             >
-              {isSetUp ? 'Welcome back' : `Welcome to ${osNamePreview}`}
+              {isSetUp ? 'Welcome back' : `Welcome to ${storedOsName}`}
             </motion.p>
             <motion.p
               initial={{ opacity: 0 }}
