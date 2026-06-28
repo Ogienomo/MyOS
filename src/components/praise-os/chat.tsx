@@ -23,7 +23,7 @@ const INSISTENCE_PHRASES = [
   "Every blank field is dishonesty with yourself. You're better than this. Fill it in.",
   "This is your accountability moment. Skipping is weakness. Discipline is built right here.",
   "I'm not letting you off the hook. Not today, not ever. Every answer matters.",
-  "Skipping is how drift starts. And drift ends in regret. Fill it in, .",
+  "Skipping is how drift starts. And drift ends in regret. Fill it in.",
   "You don't get to skip the hard parts. That's where the growth is. Answer the question.",
   "Avoiding this won't make it go away. Face it. Fill it in. That's an order, not a suggestion.",
 ]
@@ -175,11 +175,12 @@ function getTimeContext(): string {
   return `Evening \u2022 ${timeStr}`
 }
 
-function getContextualPrompt(): { message: string; suggestions: { type: string; label: string; desc: string; primary?: boolean }[] } {
+function getContextualPrompt(userName: string): { message: string; suggestions: { type: string; label: string; desc: string; primary?: boolean }[] } {
   const hour = new Date().getHours()
+  const name = userName || 'there'
   if (hour < 10) {
     return {
-      message: "Good morning, . Let's start the day aligned. Have you done your Morning Alignment?",
+      message: `Good morning, ${name}. Let's start the day aligned. Have you done your Morning Alignment?`,
       suggestions: [
         { type: 'morning', label: 'Morning Alignment', desc: 'Start your day right', primary: true },
         { type: 'quicklog', label: 'Quick Mood Log', desc: 'How are you feeling?' },
@@ -187,7 +188,7 @@ function getContextualPrompt(): { message: string; suggestions: { type: string; 
     }
   } else if (hour < 14) {
     return {
-      message: "Midday check, . Are you on track? Let's do a quick correction.",
+      message: `Midday check, ${name}. Are you on track? Let's do a quick correction.`,
       suggestions: [
         { type: 'midday', label: 'Midday Correction', desc: 'Stay on course', primary: true },
         { type: 'chat', label: 'Talk to Coach', desc: "What's on your mind?" },
@@ -195,7 +196,7 @@ function getContextualPrompt(): { message: string; suggestions: { type: string; 
     }
   } else if (hour < 21) {
     return {
-      message: "Evening review time, . How did the day go? Let's account for it.",
+      message: `Evening review time, ${name}. How did the day go? Let's account for it.`,
       suggestions: [
         { type: 'evening', label: 'Evening Review', desc: 'Review your day', primary: true },
         { type: 'chat', label: 'Talk to Coach', desc: 'Reflect on today' },
@@ -203,7 +204,7 @@ function getContextualPrompt(): { message: string; suggestions: { type: string; 
     }
   } else {
     return {
-      message: "It's late, . Have you done your Evening Review? Don't skip accountability.",
+      message: `It's late, ${name}. Have you done your Evening Review? Don't skip accountability.`,
       suggestions: [
         { type: 'evening', label: 'Evening Review', desc: "Don't skip this", primary: true },
         { type: 'chat', label: 'Talk to Coach', desc: 'Before you rest' },
@@ -385,6 +386,8 @@ export function Chat() {
     clearHighlightItem,
     clearChat,
     userSettings,
+    userName,
+    osName,
   } = useAppStore()
 
   // ─── Highlight search navigation ────
@@ -1847,7 +1850,7 @@ export function Chat() {
             <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-400 rounded-full border-2 border-red-600" />
           </div>
           <div>
-            <h2 className="text-sm font-semibold text-white leading-tight">MyOS AI Coach</h2>
+            <h2 className="text-sm font-semibold text-white leading-tight">{osName || 'MyOS'} AI Coach</h2>
             <p className="text-[10px] text-red-100/80 whitespace-nowrap" suppressHydrationWarning>
               {chatLoading ? 'typing...' : (mounted ? getTimeContext() : 'AI Coach')}
             </p>
@@ -2292,7 +2295,7 @@ export function Chat() {
               transition={{ delay: 0.1, duration: 0.5 }}
               className="text-base font-bold text-neutral-800 dark:text-neutral-200 mb-1"
             >
-              MyOS AI Coach
+              {osName || 'MyOS'} AI Coach
             </motion.h3>
             <motion.p
               initial={{ opacity: 0, y: 8 }}
@@ -2300,10 +2303,10 @@ export function Chat() {
               transition={{ delay: 0.15, duration: 0.5 }}
               className="text-sm text-neutral-500 dark:text-neutral-400 max-w-xs mb-6 px-4"
             >
-              {mounted ? getContextualPrompt().message : 'Your AI Coach is ready.'}
+              {mounted ? getContextualPrompt(userName).message : 'Your AI Coach is ready.'}
             </motion.p>
-            <div className={`grid gap-2 w-full max-w-xs px-4 ${mounted && getContextualPrompt().suggestions.some(s => s.primary) ? 'grid-cols-1' : 'grid-cols-2'}`}>
-              {(mounted ? getContextualPrompt().suggestions : [{ type: 'chat', label: 'Start Chatting', desc: 'Talk to your coach' }, { type: 'morning', label: 'Morning Alignment', desc: 'Start your day right' }]).map((item, index) => (
+            <div className={`grid gap-2 w-full max-w-xs px-4 ${mounted && getContextualPrompt(userName).suggestions.some(s => s.primary) ? 'grid-cols-1' : 'grid-cols-2'}`}>
+              {(mounted ? getContextualPrompt(userName).suggestions : [{ type: 'chat', label: 'Start Chatting', desc: 'Talk to your coach' }, { type: 'morning', label: 'Morning Alignment', desc: 'Start your day right' }]).map((item, index) => (
                 <motion.button
                   key={item.type}
                   initial={{ opacity: 0, y: 16 }}
@@ -2640,7 +2643,7 @@ export function Chat() {
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder={isRecording ? `Listening... ${formatTime(recordingTime)}` : 'Message MyOS...'}
+                placeholder={isRecording ? `Listening... ${formatTime(recordingTime)}` : `Message ${osName || 'MyOS'}...`}
                 className="text-sm min-h-[42px] max-h-[120px] resize-none bg-white dark:bg-neutral-800 dark:text-neutral-200 dark:placeholder-neutral-500 rounded-2xl border-0 shadow-sm px-4 py-2.5 focus-visible:ring-0"
                 rows={1}
                 disabled={isTranscribing || isAnalyzing}

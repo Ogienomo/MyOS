@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from 'next/server'
 export const maxDuration = 300
 
 import { db } from '@/lib/db'
-import { callZAIWithRetry, getOpenAIClient, MYOS_SYSTEM_PROMPT, formatTodaysDate } from '@/lib/ai'
+import { callZAIWithRetry, getOpenAIClient, buildSystemPrompt, formatTodaysDate } from '@/lib/ai'
 import { getTodayInTimezone, formatDateInTimezone, getCurrentHourInTimezone, getCurrentTimeStringInTimezone, getCurrentMinutesInTimezone } from '@/lib/utils'
 import { ChatMessageSchema, sanitizeForAI } from '@/lib/validation'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
@@ -983,7 +983,10 @@ export async function POST(request: NextRequest) {
       const contextStr = formatContextForAI(ctx)
 
       const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
-        { role: 'system', content: MYOS_SYSTEM_PROMPT },
+        { role: 'system', content: buildSystemPrompt(
+          (await db.settings.findUnique({ where: { key: 'user_name' } }))?.value ? JSON.parse((await db.settings.findUnique({ where: { key: 'user_name' } }))!.value) : '',
+          (await db.settings.findUnique({ where: { key: 'os_name' } }))?.value ? JSON.parse((await db.settings.findUnique({ where: { key: 'os_name' } }))!.value) : 'MyOS'
+        ) },
       ]
 
       if (contextStr) {

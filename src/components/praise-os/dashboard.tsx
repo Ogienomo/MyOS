@@ -39,60 +39,61 @@ const CHECK_IN_WINDOWS: CheckInWindow[] = [
 ]
 
 // ─── GRANULAR GREETING (11 time periods) ─────────────────────
-function getSmartGreeting(completedCheckIns: string[]): { greeting: string; coachingMessage: string; period: string } {
+function getSmartGreeting(completedCheckIns: string[], userName: string): { greeting: string; coachingMessage: string; period: string } {
   const hour = new Date().getHours()
   const day = new Date().getDay() // 0=Sun, 5=Fri
   const isFriday = day === 5
   const isSunday = day === 0
+  const name = userName || 'there'
 
   let greeting = ''
   let coachingMessage = ''
   let period = ''
 
   if (hour >= 4 && hour < 5) {
-    greeting = 'Rise and Align, Praise'
+    greeting = `Rise and Align, ${name}`
     period = 'dawn'
     coachingMessage = completedCheckIns.includes('morning')
       ? "You're up before the world. Morning check-in done — you're already winning."
       : "The early hours are sacred. Your morning check-in is waiting — start here."
   } else if (hour >= 5 && hour < 6) {
-    greeting = 'Early Riser, Praise'
+    greeting = `Early Riser, ${name}`
     period = 'early-morning'
     coachingMessage = completedCheckIns.includes('morning')
       ? "Early and aligned. This is the energy that builds empires."
       : "You're up early — don't waste it. Morning Alignment is open."
   } else if (hour >= 6 && hour < 8) {
-    greeting = 'Good Morning, Praise'
+    greeting = `Good Morning, ${name}`
     period = 'morning'
     coachingMessage = completedCheckIns.includes('morning')
       ? "Fresh start energy. You've set the tone — now execute."
       : "Fresh start energy. Don't waste it — do your Morning Alignment."
   } else if (hour >= 8 && hour < 10) {
-    greeting = 'Morning, Praise'
+    greeting = `Morning, ${name}`
     period = 'late-morning'
     coachingMessage = completedCheckIns.includes('morning')
       ? "Morning done. The day is moving — stay intentional."
       : "Your morning check-in window is closing. Urgency matters. Do it now."
   } else if (hour >= 10 && hour < 12) {
-    greeting = 'Late Morning, Praise'
+    greeting = `Late Morning, ${name}`
     period = 'late-morning-critical'
     coachingMessage = completedCheckIns.includes('morning')
       ? "Morning done, even if late. Now recover the day with focus."
-      : "Praise, your morning check-in is critically overdue. No more delays — do it NOW."
+      : `${name}, your morning check-in is critically overdue. No more delays — do it NOW.`
   } else if (hour >= 12 && hour < 14) {
-    greeting = 'Good Afternoon, Praise'
+    greeting = `Good Afternoon, ${name}`
     period = 'afternoon'
     coachingMessage = completedCheckIns.includes('midday')
       ? "Midday correction done. You're on course — keep pushing."
       : "Midday check-in time. Are you on track or drifting? Find out now."
   } else if (hour >= 14 && hour < 16) {
-    greeting = 'Afternoon, Praise'
+    greeting = `Afternoon, ${name}`
     period = 'late-afternoon'
     coachingMessage = completedCheckIns.includes('midday')
       ? "Afternoon momentum. Stay the course."
       : "Midday check-in is still open but closing soon. Course-correct now."
   } else if (hour >= 16 && hour < 18) {
-    greeting = 'Late Afternoon, Praise'
+    greeting = `Late Afternoon, ${name}`
     period = 'late-afternoon-eve'
     coachingMessage = isFriday && !completedCheckIns.includes('friday')
       ? "Friday Strategic Review is due. Don't let the week end without accountability."
@@ -100,28 +101,28 @@ function getSmartGreeting(completedCheckIns: string[]): { greeting: string; coac
         ? "Wrap-up focus. Start thinking about your evening review."
         : "Last chance for midday check-in. Evening review is coming."
   } else if (hour >= 18 && hour < 20) {
-    greeting = 'Good Evening, Praise'
+    greeting = `Good Evening, ${name}`
     period = 'evening'
     coachingMessage = completedCheckIns.includes('evening')
       ? "Evening review done. Time to rest or push further — your call."
       : "Evening review time. How did the day go? Account for it now."
   } else if (hour >= 20 && hour < 22) {
-    greeting = 'Evening, Praise'
+    greeting = `Evening, ${name}`
     period = 'late-evening'
     coachingMessage = completedCheckIns.includes('evening')
       ? "Evening review complete. Wind down with intention."
       : "Urgent: Your evening review is overdue. Don't skip accountability. Do it before bed."
   } else if (hour >= 22 && hour < 24) {
-    greeting = 'Good Night, Praise'
+    greeting = `Good Night, ${name}`
     period = 'night'
     coachingMessage = completedCheckIns.includes('evening')
       ? "Evening review complete. Wind down — rest is discipline too."
       : "Last chance for your evening review. Don't let the day end without accounting for it."
   } else {
     // 12 AM - 4 AM
-    greeting = "Praise, it's late"
+    greeting = `${name}, it's late`
     period = 'late-night'
-    coachingMessage = "It's past your bedtime, . Rest is discipline too. Sleep now, align tomorrow."
+    coachingMessage = `It's past your bedtime, ${name}. Rest is discipline too. Sleep now, align tomorrow.`
   }
 
   // Override coaching message for Friday/Sunday specific check-ins
@@ -136,7 +137,8 @@ function getSmartGreeting(completedCheckIns: string[]): { greeting: string; coac
 }
 
 // ─── SMART PROMPT (current expected check-in) ────────────────
-function getSmartPrompt(completedCheckIns: string[], currentTime: Date): { title: string; description: string; urgency: 'normal' | 'high' | 'critical'; expectedType: string; windowEnd: Date | null } {
+function getSmartPrompt(completedCheckIns: string[], currentTime: Date, userName: string): { title: string; description: string; urgency: 'normal' | 'high' | 'critical'; expectedType: string; windowEnd: Date | null } {
+  const name = userName || 'there'
   const hour = currentTime.getHours()
   const day = currentTime.getDay()
 
@@ -145,7 +147,7 @@ function getSmartPrompt(completedCheckIns: string[], currentTime: Date): { title
     if (hour >= 10) {
       const windowEnd = new Date(currentTime)
       windowEnd.setHours(11, 59, 59, 999)
-      return { title: 'Morning Alignment Overdue', description: 'Praise, your morning check-in is overdue. Discipline starts here. Do it now.', urgency: 'critical', expectedType: 'morning', windowEnd }
+      return { title: 'Morning Alignment Overdue', description: `${name}, your morning check-in is overdue. Discipline starts here. Do it now.`, urgency: 'critical', expectedType: 'morning', windowEnd }
     }
     if (hour >= 8) {
       const windowEnd = new Date(currentTime)
@@ -164,7 +166,7 @@ function getSmartPrompt(completedCheckIns: string[], currentTime: Date): { title
     if (hour >= 14) {
       const windowEnd = new Date(currentTime)
       windowEnd.setHours(14, 59, 59, 999)
-      return { title: 'Midday Correction Overdue', description: 'Praise, your midday check-in is overdue. Course-correct now.', urgency: 'critical', expectedType: 'midday', windowEnd }
+      return { title: 'Midday Correction Overdue', description: `${name}, your midday check-in is overdue. Course-correct now.`, urgency: 'critical', expectedType: 'midday', windowEnd }
     }
     const windowEnd = new Date(currentTime)
     windowEnd.setHours(13, 59, 59, 999)
@@ -176,7 +178,7 @@ function getSmartPrompt(completedCheckIns: string[], currentTime: Date): { title
     if (hour >= 22) {
       const windowEnd = new Date(currentTime)
       windowEnd.setHours(23, 59, 59, 999)
-      return { title: 'Evening Review Overdue', description: 'Praise, skipping your evening review means skipping accountability. Do it before sleep.', urgency: 'critical', expectedType: 'evening', windowEnd }
+      return { title: 'Evening Review Overdue', description: `${name}, skipping your evening review means skipping accountability. Do it before sleep.`, urgency: 'critical', expectedType: 'evening', windowEnd }
     }
     if (hour >= 20) {
       const windowEnd = new Date(currentTime)
@@ -375,7 +377,7 @@ function WidgetSection({ widgetId, widgetSettings, children }: {
 
 // ─── MAIN COMPONENT ──────────────────────────────────────────
 export function Dashboard() {
-  const { dashboardData, dashboardLoading, setDashboardData, setDashboardLoading, setActiveTab, setActiveCheckInType, todayQuickLog, setTodayQuickLog, lastSyncTimestamp, userSettings } = useAppStore()
+  const { dashboardData, dashboardLoading, setDashboardData, setDashboardLoading, setActiveTab, setActiveCheckInType, todayQuickLog, setTodayQuickLog, lastSyncTimestamp, userSettings, userName } = useAppStore()
   const [quickLogOpen, setQuickLogOpen] = useState(false)
   const [mood, setMood] = useState(5)
   const [energy, setEnergy] = useState(5)
@@ -534,7 +536,7 @@ export function Dashboard() {
   const overallStreak = streaks.find(s => s.type === 'overall') || { currentStreak: 0, longestStreak: 0 }
   const moodStreak = streaks.find(s => s.type === 'mood') || { currentStreak: 0, longestStreak: 0 }
 
-  // Today's wins - what Praise has accomplished today
+  // Today's wins - what the user has accomplished today
   const todaysWins = [
     { label: 'Morning Check-in', done: completedCheckInTypes.includes('morning') },
     { label: 'Midday Check-in', done: completedCheckInTypes.includes('midday') },
@@ -545,10 +547,10 @@ export function Dashboard() {
 
   // Smart greeting and prompt — greetingKey forces refresh every 60s
   // (greetingKey is incremented by a 60s interval in the useEffect above)
-  const { greeting: smartGreetingText, coachingMessage, period } = getSmartGreeting(completedCheckInTypes)
+  const { greeting: smartGreetingText, coachingMessage, period } = getSmartGreeting(completedCheckInTypes, userName)
   void greetingKey // reference greetingKey so the 60s refresh triggers re-evaluation
   void period // period is used for debugging/logging if needed
-  const smartPrompt = getSmartPrompt(completedCheckInTypes, currentTime)
+  const smartPrompt = getSmartPrompt(completedCheckInTypes, currentTime, userName)
 
   // Overdue nudges — recalculated every minute via greetingKey
   const overdueNudges = getOverdueNudges(completedCheckInTypes, currentTime)
