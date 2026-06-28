@@ -3,25 +3,28 @@
 ---
 Task ID: 1
 Agent: Main
-Task: Clone PraiseOS, de-personalise, add dynamic branding, push as MyOS
+Task: Clone PraiseOS from Ogienomo/praise-os, de-personalise, add Danger Zone, deploy to Vercel
 
 Work Log:
-- Cloned PraiseOS from GitHub (PraiseOS/PraiseOS)
-- Analyzed all 15+ source files for personal references
-- Identified 6 files with hardcoded "PraiseOS" branding and personal contact info
-- Created new MyOS project with same core structure
-- Added first_run_setup.pyw — asks user for name on first launch
-- Modified utils.py to read dynamic OS name from data.json
-- Updated all display files (bootscreen, bootmanager, bootloader, login, setup, home) to use dynamic name
-- Removed Discord link and praisedevteam@gmail.com
-- Kept only attribution credit in README.md (required by AGPL-3.0)
-- All Python files pass syntax checks
-- Unit tests pass: default name "MyOS", dynamic name "JamesOS" works correctly
-- Created GitHub repo: Ogienomo/MyOS
-- Pushed to main branch
+- Cloned source from private repo Ogienomo/praise-os using GitHub API (185 source files)
+- Identified 31 files with Praise-specific references
+- Performed two-pass rebranding: replaced all "Praise OS" → "MyOS", "Praise Obaje" → generic user references
+- Replaced localStorage keys, custom events, notification tags, export filenames
+- Made AI coaching prompts generic/user-focused instead of Praise-specific
+- Removed FOUNDER.jpg reference, replaced with Sparkles icon
+- Renamed component directory from praise-os to myos
+- Added Danger Zone tab in Settings with Delete All Data feature (requires typing DELETE)
+- Morning alignment time is user-configurable in Settings (was hardcoded to 5:00 AM)
+- Goals are user-created (removed Praise's preset goals from seed data)
+- Fixed function name corruption (the userOS → MyOSApp)
+- Fixed conversational text references (", the user." → ".", etc.)
+- Deployed to Vercel at https://myos-life.vercel.app (account: praiseobaje2001@gmail.com)
+- Pushed to GitHub at https://github.com/Ogienomo/MyOS
 
 Stage Summary:
-- MyOS is live at https://github.com/Ogienomo/MyOS
-- Zero personal data from Praise remains (except attribution in README)
-- User enters name → OS becomes [Name]OS dynamically
-- Full original functionality preserved
+- MyOS is live at https://myos-life.vercel.app
+- GitHub: https://github.com/Ogienomo/MyOS
+- Zero personal data from Praise remains in the codebase
+- All PraiseOS features preserved: Dashboard, AI Coach, Life Areas, Goals, Finances, Journal, Habits, Insights, Calendar, etc.
+- Danger Zone feature added with type-to-confirm deletion
+- Build uses SQLite (data won't persist on Vercel without PostgreSQL - needs DATABASE_URL env var)
