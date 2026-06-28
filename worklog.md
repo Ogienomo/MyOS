@@ -56,3 +56,28 @@ Stage Summary:
 - Profile save, auth, and check-in APIs all working on live site
 - Database health check confirms: "PERSISTENT — PostgreSQL is connected and accepting writes"
 - Live site: https://myos-life-v2.vercel.app
+---
+Task ID: 2
+Agent: Main Agent
+Task: Fix first page — should show setup instead of login for new users
+
+Work Log:
+- Analyzed screenshot: login page ("Enter Access Code") was showing as the first page
+- Root cause: Stale auth + profile records in Neon database from previous testing caused all new visitors to see login instead of setup
+- Cleared all test data from Neon PostgreSQL database (auth, settings, and all other tables)
+- Improved AuthGate component with PraiseOS-style boot animation:
+  - Added "boot" step with Linux-style [  OK  ] messages (matching PraiseOS init.py boot sequence)
+  - Boot lines: "Initializing system...", "Loading Life OS kernel...", "Mounting database...", "Starting alignment engine...", "System ready."
+  - After boot, transitions to "checking" step which determines setup vs login
+- Fixed flow logic: if !isSetUp OR !isSetupComplete → show setup-name (not login)
+- Login page now dynamically shows the user's personalized OS name (not hardcoded "MyOS")
+- Added storedOsName state so login screen shows e.g. "PraiseOS" instead of "MyOS"
+- Used useRef to prevent double-checking in React Strict Mode
+- Committed, pushed to GitHub, deployed to Vercel
+- Verified: API returns isSetUp:false, isSetupComplete:false → setup page will show first
+
+Stage Summary:
+- New user flow: Boot animation → Setup Name → Setup Code → Dashboard
+- Returning user flow: Boot animation → Login (with personalized OS name) → Dashboard
+- Database cleaned: ready for first real user setup
+- Deployed to: https://myos-life-v2.vercel.app
