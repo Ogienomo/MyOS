@@ -30,3 +30,29 @@ Stage Summary:
 - Morning alignment time is user-configurable in Settings (Check-ins tab)
 - Goals are user-created (no Praise's goals)
 - Known limitation: SQLite doesn't persist on Vercel serverless - needs PostgreSQL (Neon/Supabase) for production
+---
+Task ID: 1
+Agent: Main Agent
+Task: Connect PostgreSQL (Neon) database and fix profile save failure
+
+Work Log:
+- Analyzed the uploaded screenshot showing "Failed to save profile" error on myos-life-v2.vercel.app
+- Identified root cause: Prisma schema was using SQLite provider, which doesn't work on Vercel serverless (ephemeral filesystem)
+- Switched Prisma provider from `sqlite` to `postgresql` in `prisma/schema.prisma`
+- Updated `.env` with Neon PostgreSQL connection string: `postgresql://neondb_owner:npg_hY7deNan0KUC@ep-round-thunder-atgiv5ec-pooler.c-9.us-east-1.aws.neon.tech/neondb?sslmode=require`
+- Removed unsupported `channel_binding=require` parameter from connection string (Prisma doesn't support it)
+- Ran `prisma db push` to create all tables in Neon PostgreSQL
+- Verified database connection with test upsert/delete operations
+- Built Next.js app successfully with PostgreSQL
+- Tested profile save API locally - confirmed working
+- Pushed changes to GitHub (Ogienomo/MyOS)
+- Updated Vercel environment variable `DATABASE_URL` on `myos-life-v2` project with Neon PostgreSQL URL
+- Triggered redeployment on Vercel
+- Verified live site: profile save works, database health check passes, write test passes
+
+Stage Summary:
+- Root cause: SQLite doesn't persist on Vercel serverless → switched to Neon PostgreSQL
+- All 19+ tables created in Neon PostgreSQL database
+- Profile save, auth, and check-in APIs all working on live site
+- Database health check confirms: "PERSISTENT — PostgreSQL is connected and accepting writes"
+- Live site: https://myos-life-v2.vercel.app
