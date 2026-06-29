@@ -12,6 +12,7 @@ import { getTodayInTimezone, formatDateInTimezone, getCurrentHourInTimezone, get
 import { ChatMessageSchema, sanitizeForAI } from '@/lib/validation'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
 import { recalcStreaks } from '@/lib/streaks'
+import { getUserId } from '@/lib/userid'
 import OpenAI from 'openai'
 
 interface ChatRequestBody {
@@ -34,7 +35,7 @@ interface LifeContext {
   today: string
 }
 
-async function buildContext(): Promise<LifeContext> {
+async function buildContext(userId: string): Promise<LifeContext> {
   const today = formatTodaysDate()
 
   const [
@@ -48,18 +49,18 @@ async function buildContext(): Promise<LifeContext> {
     weekFinances,
     lifeAreaProgress,
   ] = await Promise.all([
-    db.checkIn.findMany({ orderBy: { createdAt: 'desc' }, take: 14 }),
-    db.lifeAreaScore.findMany({ orderBy: { date: 'desc' }, take: 5 }),
-    db.goal.findMany({ where: { status: 'In Progress' }, include: { tasks: true }, take: 7 }),
-    db.driftAlert.findMany({ where: { resolved: false }, orderBy: { createdAt: 'desc' }, take: 5 }),
-    db.memory.findMany({ orderBy: { createdAt: 'desc' }, take: 20 }),
-    db.quickLog.findMany({ orderBy: { createdAt: 'desc' }, take: 14 }),
-    db.financeEntry.findMany({ orderBy: { createdAt: 'desc' }, take: 14 }),
+    db.checkIn.findMany({ where: { userId }, orderBy: { createdAt: 'desc' }, take: 14 }),
+    db.lifeAreaScore.findMany({ where: { userId }, orderBy: { date: 'desc' }, take: 5 }),
+    db.goal.findMany({ where: { userId, status: 'In Progress' }, include: { tasks: true }, take: 7 }),
+    db.driftAlert.findMany({ where: { userId, resolved: false }, orderBy: { createdAt: 'desc' }, take: 5 }),
+    db.memory.findMany({ where: { userId }, orderBy: { createdAt: 'desc' }, take: 20 }),
+    db.quickLog.findMany({ where: { userId }, orderBy: { createdAt: 'desc' }, take: 14 }),
+    db.financeEntry.findMany({ where: { userId }, orderBy: { createdAt: 'desc' }, take: 14 }),
     (async () => {
       const weekAgo = new Date()
       weekAgo.setDate(weekAgo.getDate() - 7)
       const weekAgoStr = formatDateInTimezone(weekAgo)
-      const entries = await db.financeEntry.findMany({ where: { date: { gte: weekAgoStr } } })
+      const entries = await db.financeEntry.findMany({ where: { userId, date: { gte: weekAgoStr } } })
       return {
         received: entries.filter(f => f.type === 'received').reduce((s, f) => s + f.amount, 0),
         spent: entries.filter(f => f.type === 'spent').reduce((s, f) => s + f.amount, 0),
@@ -67,7 +68,7 @@ async function buildContext(): Promise<LifeContext> {
         count: entries.length,
       }
     })(),
-    db.lifeAreaProgress.findMany({ orderBy: { area: 'asc' } }),
+    db.lifeAreaProgress.findMany({ where: { userId }, orderBy: { area: 'asc' } }),
   ])
 
   return {
@@ -927,11 +928,12 @@ export async function POST(request: NextRequest) {
     const { checkInType, history, stream: streamMode } = body
     const message = sanitizeForAI(body.message)
     const today = getTodayInTimezone()
+    const userId = getUserId(request)
 
     // Server-side strict mode enforcement for check-ins
     if (checkInType) {
       try {
-        const settingsRecord = await db.settings.findUnique({ where: { key: 'user_settings' } })
+        const settingsRecord = await db.settings.findUnique({ where: { userId_key: { userId, key: 'user_settings' } } })
         if (settingsRecord) {
           const settings = JSON.parse(settingsRecord.value)
           const checkInWindows = settings.checkInWindows || {}
@@ -964,6 +966,7 @@ export async function POST(request: NextRequest) {
     try {
       userMessage = await db.chatMessage.create({
         data: {
+          userId,
           role: 'user',
           content: message,
           checkInType: checkInType || null,
@@ -974,7 +977,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Build context from database (used by both AI and fallback)
-    const ctx = await buildContext()
+    const ctx = await buildContext(userId)
     let assistantContent = ''
     let usedAI = false
 
@@ -984,8 +987,8 @@ export async function POST(request: NextRequest) {
 
       const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
         { role: 'system', content: buildSystemPrompt(
-          (await db.settings.findUnique({ where: { key: 'user_name' } }))?.value ? JSON.parse((await db.settings.findUnique({ where: { key: 'user_name' } }))!.value) : '',
-          (await db.settings.findUnique({ where: { key: 'os_name' } }))?.value ? JSON.parse((await db.settings.findUnique({ where: { key: 'os_name' } }))!.value) : 'MyOS'
+          (await db.settings.findUnique({ where: { userId_key: { userId, key: 'user_name' } } }))?.value ? JSON.parse((await db.settings.findUnique({ where: { userId_key: { userId, key: 'user_name' } } }))!.value) : '',
+          (await db.settings.findUnique({ where: { userId_key: { userId, key: 'os_name' } } }))?.value ? JSON.parse((await db.settings.findUnique({ where: { userId_key: { userId, key: 'os_name' } } }))!.value) : 'MyOS'
         ) },
       ]
 

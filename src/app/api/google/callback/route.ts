@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get client ID from settings
-    const clientIdSetting = await db.settings.findUnique({ where: { key: 'google_client_id' } })
+    const clientIdSetting = await db.settings.findUnique({ where: { userId_key: { userId: 'default', key: 'google_client_id' } } })
 
     if (!clientIdSetting && !process.env.GOOGLE_CLIENT_ID) {
       return NextResponse.json({ error: 'Google Client ID not configured' }, { status: 400 })
@@ -49,9 +49,9 @@ export async function GET(request: NextRequest) {
 
     // Store tokens in Settings table
     await db.settings.upsert({
-      where: { key: 'google_tokens' },
+      where: { userId_key: { userId: 'default', key: 'google_tokens' } },
       update: { value: JSON.stringify(tokens) },
-      create: { key: 'google_tokens', value: JSON.stringify(tokens) },
+      create: { userId: 'default', key: 'google_tokens', value: JSON.stringify(tokens) },
     })
 
     // Redirect back to the app with success

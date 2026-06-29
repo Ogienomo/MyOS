@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { ScoreSchema, clampScore } from '@/lib/validation'
+import { getUserId } from '@/lib/userid'
 
 // GET /api/scores?from=YYYY-MM-DD&to=YYYY-MM-DD
 export async function GET(request: NextRequest) {
@@ -8,6 +9,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const fromParam = searchParams.get('from')
     const toParam = searchParams.get('to')
+    const userId = getUserId(request)
 
     // Default to last 7 days
     const to = toParam || new Date().toISOString().split('T')[0]
@@ -18,6 +20,7 @@ export async function GET(request: NextRequest) {
 
     const scores = await db.lifeAreaScore.findMany({
       where: {
+        userId,
         date: { gte: from, lte: to },
       },
       orderBy: { date: 'desc' },
@@ -40,6 +43,7 @@ export async function POST(request: NextRequest) {
     }
     const body = parsed.data
     const { date } = body
+    const userId = getUserId(request)
 
     // Clamp all scores to [0,10]
     const faith = clampScore(body.faith) ?? 0
@@ -53,7 +57,7 @@ export async function POST(request: NextRequest) {
 
     // Upsert: if score for this date exists, update it; otherwise create new
     const existingScore = await db.lifeAreaScore.findUnique({
-      where: { date },
+      where: { userId_date: { userId, date } },
     })
 
     const scoreData = {
@@ -81,12 +85,12 @@ export async function POST(request: NextRequest) {
       if (overall !== undefined) updateData.overall = overall
 
       score = await db.lifeAreaScore.update({
-        where: { date },
+        where: { userId_date: { userId, date } },
         data: updateData,
       })
     } else {
       score = await db.lifeAreaScore.create({
-        data: { date, ...scoreData },
+        data: { userId, date, ...scoreData },
       })
     }
 

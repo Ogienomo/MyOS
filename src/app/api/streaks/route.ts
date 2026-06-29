@@ -1,22 +1,23 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getTodayInTimezone, formatDateInTimezone } from '@/lib/utils'
+import { getUserId } from '@/lib/userid'
 
-async function calculateStreak(type: string): Promise<{ currentStreak: number; longestStreak: number; lastDate: string | null }> {
+async function calculateStreak(type: string, userId: string): Promise<{ currentStreak: number; longestStreak: number; lastDate: string | null }> {
   const today = getTodayInTimezone()
 
   // Get or create streak record
-  let streak = await db.streak.findUnique({ where: { type } })
+  let streak = await db.streak.findUnique({ where: { userId_type: { userId, type } } })
   if (!streak) {
     streak = await db.streak.create({
-      data: { type, currentStreak: 0, longestStreak: 0, lastDate: null },
+      data: { userId, type, currentStreak: 0, longestStreak: 0, lastDate: null },
     })
   }
 
   // For 'morning' and 'evening' streaks, calculate based on check-ins
   if (type === 'morning' || type === 'evening') {
     const checkIns = await db.checkIn.findMany({
-      where: { type },
+      where: { userId, type },
       orderBy: { date: 'desc' },
       take: 60,
     })
@@ -57,7 +58,7 @@ async function calculateStreak(type: string): Promise<{ currentStreak: number; l
     }
 
     await db.streak.update({
-      where: { type },
+      where: { userId_type: { userId, type } },
       data: {
         currentStreak,
         longestStreak: Math.max(longestStreak, currentStreak),
@@ -72,10 +73,12 @@ async function calculateStreak(type: string): Promise<{ currentStreak: number; l
   if (type === 'overall') {
     const [allCheckIns, quickLogs] = await Promise.all([
       db.checkIn.findMany({
+        where: { userId },
         orderBy: { date: 'desc' },
         take: 60,
       }),
       db.quickLog.findMany({
+        where: { userId },
         orderBy: { date: 'desc' },
         take: 60,
       }),
@@ -121,7 +124,7 @@ async function calculateStreak(type: string): Promise<{ currentStreak: number; l
     }
 
     await db.streak.update({
-      where: { type },
+      where: { userId_type: { userId, type: 'overall' } },
       data: {
         currentStreak,
         longestStreak: Math.max(longestStreak, currentStreak),
@@ -135,6 +138,7 @@ async function calculateStreak(type: string): Promise<{ currentStreak: number; l
   // For 'mood' streak, check if quick log was filled each day
   if (type === 'mood') {
     const quickLogs = await db.quickLog.findMany({
+      where: { userId },
       orderBy: { date: 'desc' },
       take: 60,
     })
@@ -176,9 +180,9 @@ async function calculateStreak(type: string): Promise<{ currentStreak: number; l
     }
 
     await db.streak.upsert({
-      where: { type: 'mood' },
+      where: { userId_type: { userId, type: 'mood' } },
       update: { currentStreak, longestStreak: Math.max(longestStreak, currentStreak), lastDate: quickLogs[0]?.date || null },
-      create: { type: 'mood', currentStreak, longestStreak: Math.max(longestStreak, currentStreak), lastDate: quickLogs[0]?.date || null },
+      create: { userId, type: 'mood', currentStreak, longestStreak: Math.max(longestStreak, currentStreak), lastDate: quickLogs[0]?.date || null },
     })
 
     return { currentStreak, longestStreak: Math.max(longestStreak, currentStreak), lastDate: quickLogs[0]?.date || null }
@@ -187,13 +191,14 @@ async function calculateStreak(type: string): Promise<{ currentStreak: number; l
   return { currentStreak: streak.currentStreak, longestStreak: streak.longestStreak, lastDate: streak.lastDate }
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const userId = getUserId(request)
     const [morning, evening, overall, mood] = await Promise.all([
-      calculateStreak('morning'),
-      calculateStreak('evening'),
-      calculateStreak('overall'),
-      calculateStreak('mood'),
+      calculateStreak('morning', userId),
+      calculateStreak('evening', userId),
+      calculateStreak('overall', userId),
+      calculateStreak('mood', userId),
     ])
 
     return NextResponse.json({

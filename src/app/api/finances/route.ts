@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { FinanceCreateSchema } from '@/lib/validation'
+import { getUserId } from '@/lib/userid'
 
 // GET /api/finances?from=YYYY-MM-DD&to=YYYY-MM-DD&type=received
 export async function GET(request: NextRequest) {
@@ -11,8 +12,9 @@ export async function GET(request: NextRequest) {
     const type = searchParams.get('type')
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
     const limit = Math.min(200, Math.max(1, parseInt(searchParams.get('limit') || '100', 10)))
+    const userId = getUserId(request)
 
-    const where: Record<string, unknown> = {}
+    const where: Record<string, unknown> = { userId }
     if (fromParam || toParam) {
       where.date = {}
       if (fromParam) (where.date as Record<string, string>).gte = fromParam
@@ -85,9 +87,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: parsed.error.errors[0].message }, { status: 400 })
     }
     const { date, type, amount, category, purpose, aligned, notes } = parsed.data
+    const userId = getUserId(request)
 
     const entry = await db.financeEntry.create({
       data: {
+        userId,
         date,
         type,
         amount,
@@ -115,7 +119,8 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'id is required' }, { status: 400 })
     }
 
-    const existing = await db.financeEntry.findUnique({ where: { id } })
+    const userId = getUserId(request)
+    const existing = await db.financeEntry.findFirst({ where: { id, userId } })
     if (!existing) {
       return NextResponse.json({ error: 'Entry not found' }, { status: 404 })
     }
@@ -164,7 +169,8 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'id query parameter is required' }, { status: 400 })
     }
 
-    const existing = await db.financeEntry.findUnique({ where: { id } })
+    const userId = getUserId(request)
+    const existing = await db.financeEntry.findFirst({ where: { id, userId } })
     if (!existing) {
       return NextResponse.json({ error: 'Entry not found' }, { status: 404 })
     }

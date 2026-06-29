@@ -5,7 +5,7 @@ import { getTodayInTimezone, formatDateInTimezone } from '@/lib/utils'
  * Recalculates streaks for the given types.
  * Call this after any check-in, mood log, or activity is recorded.
  */
-export async function recalcStreaks(checkInType?: string): Promise<void> {
+export async function recalcStreaks(checkInType?: string, userId: string = 'default'): Promise<void> {
   const today = getTodayInTimezone()
   const typesToCalc: string[] = ['overall']
   if (checkInType === 'morning' || checkInType === 'evening') typesToCalc.push(checkInType)
@@ -13,47 +13,47 @@ export async function recalcStreaks(checkInType?: string): Promise<void> {
 
   for (const type of typesToCalc) {
     try {
-      await recalcSingleStreak(type, today)
+      await recalcSingleStreak(type, today, userId)
     } catch (err) {
       console.error(`Streak recalc error for type=${type}:`, err)
     }
   }
 }
 
-async function recalcSingleStreak(type: string, today: string): Promise<void> {
+async function recalcSingleStreak(type: string, today: string, userId: string): Promise<void> {
   if (type === 'mood') {
-    const quickLogs = await db.quickLog.findMany({ orderBy: { date: 'desc' }, take: 90 })
+    const quickLogs = await db.quickLog.findMany({ where: { userId }, orderBy: { date: 'desc' }, take: 90 })
     if (quickLogs.length === 0) {
-      await upsertStreak(type, 0, 0, null)
+      await upsertStreak(type, 0, 0, null, userId)
       return
     }
     const logDates = new Set(quickLogs.map(l => l.date))
     const { current, longest } = calcStreak(logDates, today)
-    await upsertStreak(type, current, longest, quickLogs[0]?.date || null)
+    await upsertStreak(type, current, longest, quickLogs[0]?.date || null, userId)
 
   } else if (type === 'morning' || type === 'evening') {
-    const checkIns = await db.checkIn.findMany({ where: { type }, orderBy: { date: 'desc' }, take: 90 })
+    const checkIns = await db.checkIn.findMany({ where: { userId, type }, orderBy: { date: 'desc' }, take: 90 })
     if (checkIns.length === 0) {
-      await upsertStreak(type, 0, 0, null)
+      await upsertStreak(type, 0, 0, null, userId)
       return
     }
     const dates = new Set(checkIns.map(ci => ci.date))
     const { current, longest } = calcStreak(dates, today)
-    await upsertStreak(type, current, longest, checkIns[0]?.date || null)
+    await upsertStreak(type, current, longest, checkIns[0]?.date || null, userId)
 
   } else if (type === 'overall') {
     const [allCheckIns, quickLogs] = await Promise.all([
-      db.checkIn.findMany({ orderBy: { date: 'desc' }, take: 90 }),
-      db.quickLog.findMany({ orderBy: { date: 'desc' }, take: 90 }),
+      db.checkIn.findMany({ where: { userId }, orderBy: { date: 'desc' }, take: 90 }),
+      db.quickLog.findMany({ where: { userId }, orderBy: { date: 'desc' }, take: 90 }),
     ])
     const allDates = new Set([...allCheckIns.map(ci => ci.date), ...quickLogs.map(l => l.date)])
     if (allDates.size === 0) {
-      await upsertStreak(type, 0, 0, null)
+      await upsertStreak(type, 0, 0, null, userId)
       return
     }
     const { current, longest } = calcStreak(allDates, today)
     const sorted = [...allDates].sort().reverse()
-    await upsertStreak(type, current, longest, sorted[0] || null)
+    await upsertStreak(type, current, longest, sorted[0] || null, userId)
   }
 }
 
@@ -87,10 +87,10 @@ function calcStreak(dates: Set<string>, today: string): { current: number; longe
   return { current, longest: Math.max(longest, current) }
 }
 
-async function upsertStreak(type: string, currentStreak: number, longestStreak: number, lastDate: string | null) {
+async function upsertStreak(type: string, currentStreak: number, longestStreak: number, lastDate: string | null, userId: string) {
   await db.streak.upsert({
-    where: { type },
+    where: { userId_type: { userId, type } },
     update: { currentStreak, longestStreak, lastDate },
-    create: { type, currentStreak, longestStreak, lastDate },
+    create: { userId, type, currentStreak, longestStreak, lastDate },
   })
 }

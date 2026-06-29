@@ -1,14 +1,17 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getUserId } from '@/lib/userid'
 
 // POST /api/dedup - Find and remove duplicate goals/tasks
-export async function POST() {
+export async function POST(request: NextRequest) {
   try {
+    const userId = getUserId(request)
     let goalsRemoved = 0
     let tasksRemoved = 0
 
     // Find all goals grouped by area+title (case-insensitive)
     const allGoals = await db.goal.findMany({
+      where: { userId },
       include: { tasks: true },
       orderBy: { createdAt: 'asc' },
     })
@@ -57,6 +60,7 @@ export async function POST() {
 
     // Now check for duplicate tasks within each goal
     const allRemainingGoals = await db.goal.findMany({
+      where: { userId },
       include: { tasks: true },
     })
 

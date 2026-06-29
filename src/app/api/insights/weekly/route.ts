@@ -1,10 +1,12 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getUserId } from '@/lib/userid'
 import { getZAI } from '@/lib/ai'
 
 // GET /api/insights/weekly — AI-generated weekly insight summary (cached per week)
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const userId = getUserId(request)
     // Calculate the current week key (ISO week number)
     const now = new Date()
     const startOfYear = new Date(now.getFullYear(), 0, 1)
@@ -13,7 +15,7 @@ export async function GET() {
     const weekKey = `weekly_insight_${now.getFullYear()}_W${weekNumber}`
 
     // Check cache
-    const cached = await db.settings.findUnique({ where: { key: weekKey } })
+    const cached = await db.settings.findUnique({ where: { userId_key: { userId, key: weekKey } } })
     if (cached) {
       try {
         const parsed = JSON.parse(cached.value)
@@ -32,20 +34,20 @@ export async function GET() {
     // Fetch data from the past week
     const [checkIns, moodLogs, financeEntries, memories] = await Promise.all([
       db.checkIn.findMany({
-        where: { date: { gte: weekAgoStr } },
+        where: { userId, date: { gte: weekAgoStr } },
         orderBy: { createdAt: 'desc' },
         take: 10,
       }),
       db.quickLog.findMany({
-        where: { date: { gte: weekAgoStr } },
+        where: { userId, date: { gte: weekAgoStr } },
         orderBy: { date: 'desc' },
       }),
       db.financeEntry.findMany({
-        where: { date: { gte: weekAgoStr } },
+        where: { userId, date: { gte: weekAgoStr } },
         orderBy: { date: 'desc' },
       }),
       db.memory.findMany({
-        where: { date: { gte: weekAgoStr } },
+        where: { userId, date: { gte: weekAgoStr } },
         orderBy: { createdAt: 'desc' },
         take: 15,
       }),
@@ -142,9 +144,9 @@ Return ONLY the insight text, no JSON, no markdown headers.`,
 
     // Cache in settings
     await db.settings.upsert({
-      where: { key: weekKey },
+      where: { userId_key: { userId, key: weekKey } },
       update: { value: JSON.stringify(result) },
-      create: { key: weekKey, value: JSON.stringify(result) },
+      create: { userId, key: weekKey, value: JSON.stringify(result) },
     })
 
     return NextResponse.json(result)

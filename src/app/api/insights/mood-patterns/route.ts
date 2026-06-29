@@ -1,15 +1,17 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getUserId } from '@/lib/userid'
 
 // GET /api/insights/mood-patterns — Mood pattern analysis over the past 2 weeks
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const userId = getUserId(request)
     const twoWeeksAgo = new Date()
     twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14)
     const twoWeeksAgoStr = twoWeeksAgo.toISOString().split('T')[0]
 
     const logs = await db.quickLog.findMany({
-      where: { date: { gte: twoWeeksAgoStr } },
+      where: { userId, date: { gte: twoWeeksAgoStr } },
       orderBy: { date: 'asc' },
     })
 

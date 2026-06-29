@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getUserId } from '@/lib/userid'
 
 const CATEGORY_LIMIT = 8
 
@@ -9,6 +10,7 @@ function truncate(text: string | null, maxLen: number = 200): string {
 }
 
 export async function GET(request: NextRequest) {
+  const userId = getUserId(request)
   const q = request.nextUrl.searchParams.get('q')?.trim()
   if (!q || q.length < 1) {
     return NextResponse.json({
@@ -27,6 +29,7 @@ export async function GET(request: NextRequest) {
     const [journal, memories, goals, finances, chat, alerts] = await Promise.all([
       db.journalEntry.findMany({
         where: {
+          userId,
           OR: [
             { title: containsQuery },
             { content: containsQuery },
@@ -46,6 +49,7 @@ export async function GET(request: NextRequest) {
       }),
       db.memory.findMany({
         where: {
+          userId,
           content: containsQuery,
         },
         take: CATEGORY_LIMIT,
@@ -60,6 +64,7 @@ export async function GET(request: NextRequest) {
       }),
       db.goal.findMany({
         where: {
+          userId,
           OR: [
             { title: containsQuery },
             { description: containsQuery },
@@ -79,6 +84,7 @@ export async function GET(request: NextRequest) {
       }),
       db.financeEntry.findMany({
         where: {
+          userId,
           OR: [
             { category: containsQuery },
             { purpose: containsQuery },
@@ -98,6 +104,7 @@ export async function GET(request: NextRequest) {
       }),
       db.chatMessage.findMany({
         where: {
+          userId,
           content: containsQuery,
         },
         take: CATEGORY_LIMIT,
@@ -112,6 +119,7 @@ export async function GET(request: NextRequest) {
       }),
       db.driftAlert.findMany({
         where: {
+          userId,
           message: containsQuery,
         },
         take: CATEGORY_LIMIT,

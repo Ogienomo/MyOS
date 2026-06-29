@@ -1,4 +1,5 @@
 import { db } from '@/lib/db'
+import { getUserId } from '@/lib/userid'
 import { NextRequest, NextResponse } from 'next/server'
 
 function escapeCSV(value: string | null | undefined): string {
@@ -18,28 +19,28 @@ function getDateString(): string {
   return new Date().toISOString().split('T')[0]
 }
 
-async function getFinancesData() {
-  return db.financeEntry.findMany({ orderBy: { date: 'desc' } })
+async function getFinancesData(userId: string) {
+  return db.financeEntry.findMany({ where: { userId }, orderBy: { date: 'desc' } })
 }
 
-async function getJournalData() {
-  return db.journalEntry.findMany({ orderBy: { date: 'desc' } })
+async function getJournalData(userId: string) {
+  return db.journalEntry.findMany({ where: { userId }, orderBy: { date: 'desc' } })
 }
 
-async function getGoalsData() {
-  return db.goal.findMany({ orderBy: { order: 'asc' } })
+async function getGoalsData(userId: string) {
+  return db.goal.findMany({ where: { userId }, orderBy: { order: 'asc' } })
 }
 
-async function getMemoriesData() {
-  return db.memory.findMany({ orderBy: { date: 'desc' } })
+async function getMemoriesData(userId: string) {
+  return db.memory.findMany({ where: { userId }, orderBy: { date: 'desc' } })
 }
 
-async function getScoresData() {
-  return db.lifeAreaScore.findMany({ orderBy: { date: 'desc' } })
+async function getScoresData(userId: string) {
+  return db.lifeAreaScore.findMany({ where: { userId }, orderBy: { date: 'desc' } })
 }
 
-async function getCheckinsData() {
-  return db.checkIn.findMany({ orderBy: { date: 'desc' } })
+async function getCheckinsData(userId: string) {
+  return db.checkIn.findMany({ where: { userId }, orderBy: { date: 'desc' } })
 }
 
 function financesToCSV(data: Awaited<ReturnType<typeof getFinancesData>>): string {
@@ -79,6 +80,7 @@ function checkinsToCSV(data: Awaited<ReturnType<typeof getCheckinsData>>): strin
 }
 
 export async function GET(request: NextRequest) {
+  const userId = getUserId(request)
   const { searchParams } = request.nextUrl
   const type = searchParams.get('type') || 'all'
   const format = searchParams.get('format') || 'csv'
@@ -95,12 +97,12 @@ export async function GET(request: NextRequest) {
   try {
     if (type === 'all') {
       const [finances, journal, goals, memories, scores, checkins] = await Promise.all([
-        getFinancesData(),
-        getJournalData(),
-        getGoalsData(),
-        getMemoriesData(),
-        getScoresData(),
-        getCheckinsData(),
+        getFinancesData(userId),
+        getJournalData(userId),
+        getGoalsData(userId),
+        getMemoriesData(userId),
+        getScoresData(userId),
+        getCheckinsData(userId),
       ])
 
       if (format === 'json') {
@@ -149,37 +151,37 @@ export async function GET(request: NextRequest) {
 
     switch (type) {
       case 'finances': {
-        const data = await getFinancesData()
+        const data = await getFinancesData(userId)
         csvContent = financesToCSV(data)
         jsonData = data
         break
       }
       case 'journal': {
-        const data = await getJournalData()
+        const data = await getJournalData(userId)
         csvContent = journalToCSV(data)
         jsonData = data
         break
       }
       case 'goals': {
-        const data = await getGoalsData()
+        const data = await getGoalsData(userId)
         csvContent = goalsToCSV(data)
         jsonData = data
         break
       }
       case 'memories': {
-        const data = await getMemoriesData()
+        const data = await getMemoriesData(userId)
         csvContent = memoriesToCSV(data)
         jsonData = data
         break
       }
       case 'scores': {
-        const data = await getScoresData()
+        const data = await getScoresData(userId)
         csvContent = scoresToCSV(data)
         jsonData = data
         break
       }
       case 'checkins': {
-        const data = await getCheckinsData()
+        const data = await getCheckinsData(userId)
         csvContent = checkinsToCSV(data)
         jsonData = data
         break

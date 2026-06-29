@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { JournalCreateSchema, VALID_AREAS, VALID_MOODS } from '@/lib/validation'
+import { getUserId } from '@/lib/userid'
 
 // GET /api/journal?area=faith&from=2026-01-01&to=2026-03-01
 export async function GET(request: NextRequest) {
@@ -11,8 +12,9 @@ export async function GET(request: NextRequest) {
     const to = searchParams.get('to')
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '50', 10)))
+    const userId = getUserId(request)
 
-    const where: Record<string, unknown> = {}
+    const where: Record<string, unknown> = { userId }
 
     if (area) {
       if (!VALID_AREAS.includes(area)) {
@@ -57,9 +59,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: parsed.error.errors[0].message }, { status: 400 })
     }
     const { area, title, content, mood, tags, date } = parsed.data
+    const userId = getUserId(request)
 
     const entry = await db.journalEntry.create({
       data: {
+        userId,
         area,
         title: title || null,
         content,
@@ -86,7 +90,8 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Entry id is required' }, { status: 400 })
     }
 
-    const existing = await db.journalEntry.findUnique({ where: { id } })
+    const userId = getUserId(request)
+    const existing = await db.journalEntry.findFirst({ where: { id, userId } })
     if (!existing) {
       return NextResponse.json({ error: 'Journal entry not found' }, { status: 404 })
     }
@@ -142,7 +147,8 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Entry id is required' }, { status: 400 })
     }
 
-    const existing = await db.journalEntry.findUnique({ where: { id } })
+    const userId = getUserId(request)
+    const existing = await db.journalEntry.findFirst({ where: { id, userId } })
     if (!existing) {
       return NextResponse.json({ error: 'Journal entry not found' }, { status: 404 })
     }

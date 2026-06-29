@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { callZAIWithRetry, MYOS_SYSTEM_PROMPT, formatTodaysDate } from '@/lib/ai'
 import { getTodayInTimezone, formatDateInTimezone } from '@/lib/utils'
+import { getUserId } from '@/lib/userid'
 
 // Fire-and-forget streak recalculation after check-in
-async function recalcStreaksAfterCheckIn(checkInType: string) {
+async function recalcStreaksAfterCheckIn(checkInType: string, userId: string) {
   try {
     const today = getTodayInTimezone()
     const typesToCalc = ['overall']
@@ -13,9 +14,9 @@ async function recalcStreaksAfterCheckIn(checkInType: string) {
 
     for (const type of typesToCalc) {
       if (type === 'mood') {
-        const quickLogs = await db.quickLog.findMany({ orderBy: { date: 'desc' }, take: 60 })
+        const quickLogs = await db.quickLog.findMany({ where: { userId }, orderBy: { date: 'desc' }, take: 60 })
         if (quickLogs.length === 0) {
-          await db.streak.upsert({ where: { type: 'mood' }, update: { currentStreak: 0, longestStreak: 0, lastDate: null }, create: { type: 'mood', currentStreak: 0, longestStreak: 0, lastDate: null } })
+          await db.streak.upsert({ where: { userId_type: { userId, type: 'mood' } }, update: { currentStreak: 0, longestStreak: 0, lastDate: null }, create: { userId, type: 'mood', currentStreak: 0, longestStreak: 0, lastDate: null } })
           continue
         }
         const logDates = new Set(quickLogs.map(l => l.date))
@@ -30,11 +31,11 @@ async function recalcStreaksAfterCheckIn(checkInType: string) {
           const diff = Math.round((new Date(sorted[i-1]).getTime() - new Date(sorted[i]).getTime()) / 86400000)
           if (diff === 1) { temp++; longest = Math.max(longest, temp) } else temp = 1
         }
-        await db.streak.upsert({ where: { type: 'mood' }, update: { currentStreak, longestStreak: Math.max(longest, currentStreak), lastDate: quickLogs[0]?.date || null }, create: { type: 'mood', currentStreak, longestStreak: Math.max(longest, currentStreak), lastDate: quickLogs[0]?.date || null } })
+        await db.streak.upsert({ where: { userId_type: { userId, type: 'mood' } }, update: { currentStreak, longestStreak: Math.max(longest, currentStreak), lastDate: quickLogs[0]?.date || null }, create: { userId, type: 'mood', currentStreak, longestStreak: Math.max(longest, currentStreak), lastDate: quickLogs[0]?.date || null } })
       } else if (type === 'morning' || type === 'evening') {
-        const checkIns = await db.checkIn.findMany({ where: { type }, orderBy: { date: 'desc' }, take: 60 })
+        const checkIns = await db.checkIn.findMany({ where: { userId, type }, orderBy: { date: 'desc' }, take: 60 })
         if (checkIns.length === 0) {
-          await db.streak.upsert({ where: { type }, update: { currentStreak: 0, longestStreak: 0, lastDate: null }, create: { type, currentStreak: 0, longestStreak: 0, lastDate: null } })
+          await db.streak.upsert({ where: { userId_type: { userId, type } }, update: { currentStreak: 0, longestStreak: 0, lastDate: null }, create: { userId, type, currentStreak: 0, longestStreak: 0, lastDate: null } })
           continue
         }
         const dates = new Set(checkIns.map(ci => ci.date))
@@ -49,15 +50,15 @@ async function recalcStreaksAfterCheckIn(checkInType: string) {
           const diff = Math.round((new Date(sorted[i-1]).getTime() - new Date(sorted[i]).getTime()) / 86400000)
           if (diff === 1) { temp++; longest = Math.max(longest, temp) } else temp = 1
         }
-        await db.streak.upsert({ where: { type }, update: { currentStreak, longestStreak: Math.max(longest, currentStreak), lastDate: checkIns[0]?.date || null }, create: { type, currentStreak, longestStreak: Math.max(longest, currentStreak), lastDate: checkIns[0]?.date || null } })
+        await db.streak.upsert({ where: { userId_type: { userId, type } }, update: { currentStreak, longestStreak: Math.max(longest, currentStreak), lastDate: checkIns[0]?.date || null }, create: { userId, type, currentStreak, longestStreak: Math.max(longest, currentStreak), lastDate: checkIns[0]?.date || null } })
       } else if (type === 'overall') {
         const [allCheckIns, quickLogs] = await Promise.all([
-          db.checkIn.findMany({ orderBy: { date: 'desc' }, take: 60 }),
-          db.quickLog.findMany({ orderBy: { date: 'desc' }, take: 60 }),
+          db.checkIn.findMany({ where: { userId }, orderBy: { date: 'desc' }, take: 60 }),
+          db.quickLog.findMany({ where: { userId }, orderBy: { date: 'desc' }, take: 60 }),
         ])
         const allDates = new Set([...allCheckIns.map(ci => ci.date), ...quickLogs.map(l => l.date)])
         if (allDates.size === 0) {
-          await db.streak.upsert({ where: { type: 'overall' }, update: { currentStreak: 0, longestStreak: 0, lastDate: null }, create: { type: 'overall', currentStreak: 0, longestStreak: 0, lastDate: null } })
+          await db.streak.upsert({ where: { userId_type: { userId, type: 'overall' } }, update: { currentStreak: 0, longestStreak: 0, lastDate: null }, create: { userId, type: 'overall', currentStreak: 0, longestStreak: 0, lastDate: null } })
           continue
         }
         let currentStreak = 0
@@ -71,7 +72,7 @@ async function recalcStreaksAfterCheckIn(checkInType: string) {
           const diff = Math.round((new Date(sorted[i-1]).getTime() - new Date(sorted[i]).getTime()) / 86400000)
           if (diff === 1) { temp++; longest = Math.max(longest, temp) } else temp = 1
         }
-        await db.streak.upsert({ where: { type: 'overall' }, update: { currentStreak, longestStreak: Math.max(longest, currentStreak), lastDate: sorted[0] || null }, create: { type: 'overall', currentStreak, longestStreak: Math.max(longest, currentStreak), lastDate: sorted[0] || null } })
+        await db.streak.upsert({ where: { userId_type: { userId, type: 'overall' } }, update: { currentStreak, longestStreak: Math.max(longest, currentStreak), lastDate: sorted[0] || null }, create: { userId, type: 'overall', currentStreak, longestStreak: Math.max(longest, currentStreak), lastDate: sorted[0] || null } })
       }
     }
   } catch (err) {
@@ -85,8 +86,9 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const date = searchParams.get('date')
     const type = searchParams.get('type')
+    const userId = getUserId(request)
 
-    const where: Record<string, string> = {}
+    const where: Record<string, string> = { userId }
     if (date) where.date = date
     if (type) where.type = type
 
@@ -130,10 +132,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const userId = getUserId(request)
+
     // Server-side strict mode enforcement for check-in POST
     if (['morning', 'evening'].includes(type)) {
       try {
-        const settingsRecord = await db.settings.findUnique({ where: { key: 'user_settings' } })
+        const settingsRecord = await db.settings.findUnique({ where: { userId_key: { userId, key: 'user_settings' } } })
         if (settingsRecord) {
           const settings = JSON.parse(settingsRecord.value)
           const checkInWindows = settings.checkInWindows || {}
@@ -186,6 +190,7 @@ export async function POST(request: NextRequest) {
     // Create the check-in
     const checkIn = await db.checkIn.create({
       data: {
+        userId,
         type,
         date,
         data: JSON.stringify(data),
@@ -195,12 +200,12 @@ export async function POST(request: NextRequest) {
     // Build context for AI response — gather richer data in parallel
     const today = formatTodaysDate()
     const [recentScores, activeGoals, activeAlerts, recentMoodLogs, recentFinances, recentMemories] = await Promise.all([
-      db.lifeAreaScore.findMany({ orderBy: { date: 'desc' }, take: 3 }),
-      db.goal.findMany({ where: { status: 'In Progress' }, include: { tasks: true }, take: 5 }),
-      db.driftAlert.findMany({ where: { resolved: false }, orderBy: { createdAt: 'desc' }, take: 3 }),
-      db.quickLog.findMany({ orderBy: { createdAt: 'desc' }, take: 3 }),
-      db.financeEntry.findMany({ orderBy: { createdAt: 'desc' }, take: 3 }),
-      db.memory.findMany({ orderBy: { createdAt: 'desc' }, take: 5 }),
+      db.lifeAreaScore.findMany({ where: { userId }, orderBy: { date: 'desc' }, take: 3 }),
+      db.goal.findMany({ where: { userId, status: 'In Progress' }, include: { tasks: true }, take: 5 }),
+      db.driftAlert.findMany({ where: { userId, resolved: false }, orderBy: { createdAt: 'desc' }, take: 3 }),
+      db.quickLog.findMany({ where: { userId }, orderBy: { createdAt: 'desc' }, take: 3 }),
+      db.financeEntry.findMany({ where: { userId }, orderBy: { createdAt: 'desc' }, take: 3 }),
+      db.memory.findMany({ where: { userId }, orderBy: { createdAt: 'desc' }, take: 5 }),
     ])
 
     const contextParts: string[] = []
@@ -347,6 +352,7 @@ export async function POST(request: NextRequest) {
     // Also store as chat messages
     await db.chatMessage.create({
       data: {
+        userId,
         role: 'user',
         content: `[${type} check-in] ${JSON.stringify(data)}`,
         checkInType: type,
@@ -354,6 +360,7 @@ export async function POST(request: NextRequest) {
     })
     const assistantMsg = await db.chatMessage.create({
       data: {
+        userId,
         role: 'assistant',
         content: aiResponseText,
         checkInType: type,
@@ -361,7 +368,7 @@ export async function POST(request: NextRequest) {
     })
 
     // Fire-and-forget streak recalculation after check-in
-    recalcStreaksAfterCheckIn(type).catch(() => {})
+    recalcStreaksAfterCheckIn(type, userId).catch(() => {})
 
     return NextResponse.json({
       checkIn: {

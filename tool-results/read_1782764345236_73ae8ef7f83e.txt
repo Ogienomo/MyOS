@@ -1,0 +1,691 @@
+     1→'use client'
+     2→
+     3→import { useState, useEffect, useRef } from 'react'
+     4→import { motion } from 'framer-motion'
+     5→import { Card, CardContent } from '@/components/ui/card'
+     6→import { Badge } from '@/components/ui/badge'
+     7→import { Button } from '@/components/ui/button'
+     8→import { Input } from '@/components/ui/input'
+     9→import {
+    10→  Sparkles,
+    11→  Heart,
+    12→  Activity,
+    13→  Briefcase,
+    14→  Building2,
+    15→  Wallet,
+    16→  Users,
+    17→  Sprout,
+    18→  Sun,
+    19→  Clock,
+    20→  Moon,
+    21→  TrendingUp,
+    22→  Compass,
+    23→  Star,
+    24→  Quote,
+    25→  Target,
+    26→  BarChart3,
+    27→  Zap,
+    28→  Camera,
+    29→  MapPin,
+    30→  Phone,
+    31→  Mail,
+    32→  Edit3,
+    33→  CheckCircle2,
+    34→  X,
+    35→  Plus,
+    36→  Loader2,
+    37→  Globe,
+    38→} from 'lucide-react'
+    39→import { useAppStore } from '@/lib/store'
+    40→import { getAreaConfig } from '@/lib/area-config'
+    41→
+    42→const DEFAULT_VALUES = ['Purpose', 'Growth', 'Integrity', 'Discipline', 'Excellence', 'Service', 'Stewardship', 'Joy']
+    43→
+    44→const cadence = [
+    45→  { label: 'Morning Alignment', time: 'Configurable', desc: 'Set the day with intention. Schedule, feelings, priorities.', icon: <Sun className="h-4 w-4 text-red-500" /> },
+    46→  { label: 'Midday Correction', time: '12:00 PM', desc: 'Reset focus. Completed, blockers, what\'s slipping.', icon: <Clock className="h-4 w-4 text-red-600" /> },
+    47→  { label: 'Evening Review', time: 'Configurable', desc: 'Close the day with honesty. Wins, lessons, drift.', icon: <Moon className="h-4 w-4 text-rose-500" /> },
+    48→  { label: 'Friday Strategic Review', time: '4:30 PM', desc: 'Serious weekly review across all life areas.', icon: <TrendingUp className="h-4 w-4 text-red-600" /> },
+    49→  { label: 'Sunday Planning', time: '6:00 PM', desc: 'Review upcoming week. Priorities, deadlines, focus blocks.', icon: <Compass className="h-4 w-4 text-rose-600" /> },
+    50→]
+    51→
+    52→const fadeUp = {
+    53→  initial: { opacity: 0, y: 20 },
+    54→  animate: { opacity: 1, y: 0 },
+    55→  transition: { duration: 0.5 },
+    56→}
+    57→
+    58→const stagger = {
+    59→  animate: { transition: { staggerChildren: 0.06 } },
+    60→}
+    61→
+    62→export function About() {
+    63→  const {
+    64→    userName,
+    65→    osName,
+    66→    businessName,
+    67→    businessDescription,
+    68→    profilePhoto,
+    69→    bio,
+    70→    location,
+    71→    phone,
+    72→    email,
+    73→    personalValues,
+    74→    missionStatement,
+    75→    setProfilePhoto,
+    76→    setBio,
+    77→    setLocation,
+    78→    setPhone,
+    79→    setEmail,
+    80→    setPersonalValues,
+    81→    setMissionStatement,
+    82→    setBusinessName,
+    83→    setBusinessDescription,
+    84→  } = useAppStore()
+    85→
+    86→  const [editing, setEditing] = useState(false)
+    87→  const [saving, setSaving] = useState(false)
+    88→  const [saved, setSaved] = useState(false)
+    89→  const [newValueInput, setNewValueInput] = useState('')
+    90→  const fileInputRef = useRef<HTMLInputElement>(null)
+    91→
+    92→  // Local edit state
+    93→  const [editBio, setEditBio] = useState(bio)
+    94→  const [editLocation, setEditLocation] = useState(location)
+    95→  const [editPhone, setEditPhone] = useState(phone)
+    96→  const [editEmail, setEditEmail] = useState(email)
+    97→  const [editValues, setEditValues] = useState<string[]>(personalValues.length > 0 ? personalValues : DEFAULT_VALUES)
+    98→  const [editMission, setEditMission] = useState(missionStatement)
+    99→  const [editBizName, setEditBizName] = useState(businessName)
+   100→  const [editBizDesc, setEditBizDesc] = useState(businessDescription)
+   101→  const [editPhoto, setEditPhoto] = useState(profilePhoto)
+   102→
+   103→  // Sync local state when entering edit mode
+   104→  useEffect(() => {
+   105→    if (editing) {
+   106→      setEditBio(bio)
+   107→      setEditLocation(location)
+   108→      setEditPhone(phone)
+   109→      setEditEmail(email)
+   110→      setEditValues(personalValues.length > 0 ? [...personalValues] : [...DEFAULT_VALUES])
+   111→      setEditMission(missionStatement)
+   112→      setEditBizName(businessName)
+   113→      setEditBizDesc(businessDescription)
+   114→      setEditPhoto(profilePhoto)
+   115→    }
+   116→  }, [editing, bio, location, phone, email, personalValues, missionStatement, businessName, businessDescription, profilePhoto])
+   117→
+   118→  // Get dynamic business area config
+   119→  const businessArea = typeof window !== 'undefined' ? getAreaConfig('havilah') : { label: 'Business', desc: '' }
+   120→
+   121→  const lifeAreas = [
+   122→    { label: 'Faith', desc: 'Prayer, scripture, devotion, spiritual growth', icon: <Heart className="h-4 w-4 text-red-500" /> },
+   123→    { label: 'Health', desc: 'Sleep, food, movement, gym, energy, rest', icon: <Activity className="h-4 w-4 text-rose-500" /> },
+   124→    { label: 'Career', desc: 'Applications, skills, CV, interviews, professional growth', icon: <Briefcase className="h-4 w-4 text-red-600" /> },
+   125→    { label: businessArea.label, desc: businessName ? businessDescription || 'Business, ventures, revenue, clients, systems' : 'Business, ventures, revenue, clients, systems', icon: <Building2 className="h-4 w-4 text-rose-600" /> },
+   126→    { label: 'Finances', desc: 'Money tracking, savings, giving, budgeting, stewardship', icon: <Wallet className="h-4 w-4 text-red-500" /> },
+   127→    { label: 'Relationships', desc: 'Family, friends, community, mentorship', icon: <Users className="h-4 w-4 text-rose-500" /> },
+   128→    { label: 'Personal Growth', desc: 'Learning, reading, journaling, reflection, discipline', icon: <Sprout className="h-4 w-4 text-red-700" /> },
+   129→  ]
+   130→
+   131→  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+   132→    const file = e.target.files?.[0]
+   133→    if (!file) return
+   134→
+   135→    if (file.size > 2 * 1024 * 1024) {
+   136→      alert('Image must be under 2MB')
+   137→      return
+   138→    }
+   139→
+   140→    const reader = new FileReader()
+   141→    reader.onloadend = () => {
+   142→      setEditPhoto(reader.result as string)
+   143→    }
+   144→    reader.readAsDataURL(file)
+   145→  }
+   146→
+   147→  const handleAddValue = () => {
+   148→    const val = newValueInput.trim()
+   149→    if (val && !editValues.includes(val)) {
+   150→      setEditValues([...editValues, val])
+   151→      setNewValueInput('')
+   152→    }
+   153→  }
+   154→
+   155→  const handleRemoveValue = (val: string) => {
+   156→    setEditValues(editValues.filter(v => v !== val))
+   157→  }
+   158→
+   159→  const handleSave = async () => {
+   160→    setSaving(true)
+   161→    try {
+   162→      const res = await fetch('/api/user-profile', {
+   163→        method: 'POST',
+   164→        headers: { 'Content-Type': 'application/json' },
+   165→        body: JSON.stringify({
+   166→          profilePhoto: editPhoto,
+   167→          bio: editBio,
+   168→          location: editLocation,
+   169→          phone: editPhone,
+   170→          email: editEmail,
+   171→          personalValues: editValues,
+   172→          missionStatement: editMission,
+   173→          businessName: editBizName,
+   174→          businessDescription: editBizDesc,
+   175→        }),
+   176→      })
+   177→
+   178→      const data = await res.json()
+   179→      if (res.ok && data.success) {
+   180→        setProfilePhoto(data.profilePhoto || editPhoto)
+   181→        setBio(data.bio || editBio)
+   182→        setLocation(data.location || editLocation)
+   183→        setPhone(data.phone || editPhone)
+   184→        setEmail(data.email || editEmail)
+   185→        setPersonalValues(data.personalValues || editValues)
+   186→        setMissionStatement(data.missionStatement || editMission)
+   187→        setBusinessName(data.businessName || editBizName)
+   188→        setBusinessDescription(data.businessDescription || editBizDesc)
+   189→
+   190→        // Sync to localStorage for dynamic labels
+   191→        if (data.businessName) localStorage.setItem('myos-business-name', data.businessName)
+   192→        else localStorage.removeItem('myos-business-name')
+   193→        if (data.businessDescription) localStorage.setItem('myos-business-description', data.businessDescription)
+   194→        else localStorage.removeItem('myos-business-description')
+   195→
+   196→        setSaved(true)
+   197→        setTimeout(() => {
+   198→          setSaved(false)
+   199→          setEditing(false)
+   200→        }, 1200)
+   201→      }
+   202→    } catch (err) {
+   203→      console.error('Failed to save profile:', err)
+   204→    } finally {
+   205→      setSaving(false)
+   206→    }
+   207→  }
+   208→
+   209→  const displayValues = personalValues.length > 0 ? personalValues : DEFAULT_VALUES
+   210→  const displayName = userName || 'User'
+   211→  const displayOsName = osName || 'MyOS'
+   212→
+   213→  return (
+   214→    <div className="space-y-8">
+   215→      {/* Hero / Profile Header */}
+   216→      <motion.div
+   217→        initial={{ opacity: 0 }}
+   218→        animate={{ opacity: 1 }}
+   219→        transition={{ duration: 0.6 }}
+   220→        className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-black via-neutral-900 to-red-950/40 p-8 md:p-12"
+   221→      >
+   222→        {/* Background decorations */}
+   223→        <div className="absolute top-0 right-0 w-64 h-64 bg-red-500/10 rounded-full blur-3xl" />
+   224→        <div className="absolute bottom-0 left-0 w-48 h-48 bg-red-400/5 rounded-full blur-2xl" />
+   225→
+   226→        <div className="relative z-10 flex flex-col items-center text-center">
+   227→          {/* Profile Photo */}
+   228→          <motion.div
+   229→            initial={{ scale: 0.8, opacity: 0 }}
+   230→            animate={{ scale: 1, opacity: 1 }}
+   231→            transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
+   232→            className="shrink-0 mb-6"
+   233→          >
+   234→            <div className="w-28 h-28 rounded-3xl overflow-hidden border-4 border-red-500/30 shadow-xl shadow-red-500/10 bg-red-600/15 flex items-center justify-center relative group">
+   235→              {profilePhoto ? (
+   236→                <img
+   237→                  src={profilePhoto}
+   238→                  alt={displayName}
+   239→                  className="w-full h-full object-cover"
+   240→                />
+   241→              ) : (
+   242→                <span className="text-3xl font-bold text-red-400">
+   243→                  {displayName.charAt(0).toUpperCase()}
+   244→                </span>
+   245→              )}
+   246→              {editing && (
+   247→                <button
+   248→                  onClick={() => fileInputRef.current?.click()}
+   249→                  className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+   250→                >
+   251→                  <Camera className="h-6 w-6 text-white" />
+   252→                </button>
+   253→              )}
+   254→              <input
+   255→                ref={fileInputRef}
+   256→                type="file"
+   257→                accept="image/*"
+   258→                onChange={handlePhotoUpload}
+   259→                className="hidden"
+   260→              />
+   261→            </div>
+   262→          </motion.div>
+   263→
+   264→          <motion.div
+   265→            initial={{ opacity: 0, y: 20 }}
+   266→            animate={{ opacity: 1, y: 0 }}
+   267→            transition={{ delay: 0.4 }}
+   268→          >
+   269→            <div className="flex items-center justify-center gap-2 mb-2">
+   270→              <Sparkles className="h-5 w-5 text-red-400" />
+   271→              <span className="text-red-400 text-xs font-semibold uppercase tracking-wider">{displayOsName}</span>
+   272→            </div>
+   273→            <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">{displayName}</h1>
+   274→
+   275→            {/* Contact details row */}
+   276→            <div className="flex flex-wrap items-center justify-center gap-3 mt-3 text-neutral-400 text-xs">
+   277→              {location && (
+   278→                <span className="flex items-center gap-1">
+   279→                  <MapPin className="h-3 w-3" /> {location}
+   280→                </span>
+   281→              )}
+   282→              {phone && (
+   283→                <span className="flex items-center gap-1">
+   284→                  <Phone className="h-3 w-3" /> {phone}
+   285→                </span>
+   286→              )}
+   287→              {email && (
+   288→                <span className="flex items-center gap-1">
+   289→                  <Mail className="h-3 w-3" /> {email}
+   290→                </span>
+   291→              )}
+   292→            </div>
+   293→
+   294→            {/* Bio */}
+   295→            {bio && (
+   296→              <p className="text-neutral-300 text-sm md:text-base max-w-lg leading-relaxed mt-4">
+   297→                {bio}
+   298→              </p>
+   299→            )}
+   300→            {!bio && !editing && (
+   301→              <p className="text-neutral-500 text-sm max-w-lg leading-relaxed mt-4 italic">
+   302→                A person of purpose, discipline, and vision. Built to help you make thousands of small decisions
+   303→                that align with your deepest values until the life you want becomes the life you are actually living.
+   304→              </p>
+   305→            )}
+   306→          </motion.div>
+   307→        </div>
+   308→      </motion.div>
+   309→
+   310→      {/* Edit Profile Button */}
+   311→      <div className="flex justify-end">
+   312→        {!editing ? (
+   313→          <Button
+   314→            onClick={() => setEditing(true)}
+   315→            variant="outline"
+   316→            size="sm"
+   317→            className="text-xs gap-1.5 border-neutral-200 hover:bg-neutral-50"
+   318→          >
+   319→            <Edit3 className="h-3.5 w-3.5" /> Edit Profile
+   320→          </Button>
+   321→        ) : (
+   322→          <div className="flex items-center gap-2">
+   323→            <Button
+   324→              onClick={() => setEditing(false)}
+   325→              variant="outline"
+   326→              size="sm"
+   327→              className="text-xs gap-1.5"
+   328→              disabled={saving}
+   329→            >
+   330→              <X className="h-3.5 w-3.5" /> Cancel
+   331→            </Button>
+   332→            <Button
+   333→              onClick={handleSave}
+   334→              size="sm"
+   335→              className="text-xs gap-1.5 bg-red-600 hover:bg-red-700 text-white"
+   336→              disabled={saving}
+   337→            >
+   338→              {saving ? (
+   339→                <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving...</>
+   340→              ) : saved ? (
+   341→                <><CheckCircle2 className="h-3.5 w-3.5" /> Saved!</>
+   342→              ) : (
+   343→                <><CheckCircle2 className="h-3.5 w-3.5" /> Save Changes</>
+   344→              )}
+   345→            </Button>
+   346→          </div>
+   347→        )}
+   348→      </div>
+   349→
+   350→      {/* Edit Mode */}
+   351→      {editing && (
+   352→        <motion.div
+   353→          initial={{ opacity: 0, y: 10 }}
+   354→          animate={{ opacity: 1, y: 0 }}
+   355→          className="space-y-6"
+   356→        >
+   357→          {/* Photo preview in edit */}
+   358→          {editPhoto && editPhoto !== profilePhoto && (
+   359→            <Card className="border-amber-200 bg-amber-50/50">
+   360→              <CardContent className="p-4 flex items-center gap-3">
+   361→                <div className="w-12 h-12 rounded-xl overflow-hidden border border-neutral-200">
+   362→                  <img src={editPhoto} alt="Preview" className="w-full h-full object-cover" />
+   363→                </div>
+   364→                <span className="text-xs text-neutral-600">New photo selected. Click Save to apply.</span>
+   365→                <Button variant="ghost" size="sm" className="ml-auto text-xs" onClick={() => setEditPhoto('')}>
+   366→                  Remove
+   367→                </Button>
+   368→              </CardContent>
+   369→            </Card>
+   370→          )}
+   371→
+   372→          {/* Personal Details */}
+   373→          <Card>
+   374→            <CardContent className="p-6 space-y-4">
+   375→              <h3 className="text-sm font-medium text-neutral-800 flex items-center gap-2">
+   376→                <Sparkles className="h-4 w-4 text-red-500" /> Personal Details
+   377→              </h3>
+   378→              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+   379→                <div>
+   380→                  <label className="text-xs text-neutral-500 mb-1 block">Location</label>
+   381→                  <Input
+   382→                    value={editLocation}
+   383→                    onChange={(e) => setEditLocation(e.target.value)}
+   384→                    placeholder="e.g., Lagos, Nigeria"
+   385→                    className="text-sm"
+   386→                  />
+   387→                </div>
+   388→                <div>
+   389→                  <label className="text-xs text-neutral-500 mb-1 block">Phone</label>
+   390→                  <Input
+   391→                    value={editPhone}
+   392→                    onChange={(e) => setEditPhone(e.target.value)}
+   393→                    placeholder="e.g., +234 800 000 0000"
+   394→                    className="text-sm"
+   395→                  />
+   396→                </div>
+   397→                <div className="sm:col-span-2">
+   398→                  <label className="text-xs text-neutral-500 mb-1 block">Email</label>
+   399→                  <Input
+   400→                    value={editEmail}
+   401→                    onChange={(e) => setEditEmail(e.target.value)}
+   402→                    placeholder="e.g., you@example.com"
+   403→                    className="text-sm"
+   404→                    type="email"
+   405→                  />
+   406→                </div>
+   407→                <div className="sm:col-span-2">
+   408→                  <label className="text-xs text-neutral-500 mb-1 block">About You</label>
+   409→                  <textarea
+   410→                    value={editBio}
+   411→                    onChange={(e) => setEditBio(e.target.value)}
+   412→                    placeholder="Tell us about yourself — your journey, your passions, what drives you..."
+   413→                    rows={3}
+   414→                    className="flex w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm placeholder:text-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40 focus-visible:border-red-500 transition-all resize-none"
+   415→                  />
+   416→                </div>
+   417→              </div>
+   418→            </CardContent>
+   419→          </Card>
+   420→
+   421→          {/* Mission Statement */}
+   422→          <Card>
+   423→            <CardContent className="p-6 space-y-4">
+   424→              <h3 className="text-sm font-medium text-neutral-800 flex items-center gap-2">
+   425→                <Target className="h-4 w-4 text-red-500" /> Mission Statement
+   426→              </h3>
+   427→              <textarea
+   428→                value={editMission}
+   429→                onChange={(e) => setEditMission(e.target.value)}
+   430→                placeholder="What is your personal mission? What were you put on this earth to do?"
+   431→                rows={3}
+   432→                className="flex w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm placeholder:text-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40 focus-visible:border-red-500 transition-all resize-none"
+   433→              />
+   434→            </CardContent>
+   435→          </Card>
+   436→
+   437→          {/* Core Values Editor */}
+   438→          <Card>
+   439→            <CardContent className="p-6 space-y-4">
+   440→              <h3 className="text-sm font-medium text-neutral-800 flex items-center gap-2">
+   441→                <Star className="h-4 w-4 text-red-500" /> Your Core Values
+   442→              </h3>
+   443→              <p className="text-xs text-neutral-500">Add or remove values that define who you are and what you stand for.</p>
+   444→              <div className="flex flex-wrap gap-2">
+   445→                {editValues.map((value) => (
+   446→                  <Badge
+   447→                    key={value}
+   448→                    variant="secondary"
+   449→                    className="text-sm py-1.5 px-3 bg-neutral-50 text-neutral-700 border border-neutral-200 hover:bg-red-50 hover:border-red-200 hover:text-red-700 transition-colors group cursor-pointer"
+   450→                    onClick={() => handleRemoveValue(value)}
+   451→                  >
+   452→                    {value}
+   453→                    <X className="h-3 w-3 ml-1 opacity-50 group-hover:opacity-100" />
+   454→                  </Badge>
+   455→                ))}
+   456→              </div>
+   457→              <div className="flex items-center gap-2">
+   458→                <Input
+   459→                  value={newValueInput}
+   460→                  onChange={(e) => setNewValueInput(e.target.value)}
+   461→                  placeholder="Add a value..."
+   462→                  className="text-sm flex-1"
+   463→                  onKeyDown={(e) => {
+   464→                    if (e.key === 'Enter') {
+   465→                      e.preventDefault()
+   466→                      handleAddValue()
+   467→                    }
+   468→                  }}
+   469→                />
+   470→                <Button
+   471→                  onClick={handleAddValue}
+   472→                  variant="outline"
+   473→                  size="sm"
+   474→                  className="text-xs gap-1"
+   475→                  disabled={!newValueInput.trim()}
+   476→                >
+   477→                  <Plus className="h-3.5 w-3.5" /> Add
+   478→                </Button>
+   479→              </div>
+   480→            </CardContent>
+   481→          </Card>
+   482→
+   483→          {/* Business Profile */}
+   484→          <Card>
+   485→            <CardContent className="p-6 space-y-4">
+   486→              <h3 className="text-sm font-medium text-neutral-800 flex items-center gap-2">
+   487→                <Building2 className="h-4 w-4 text-amber-500" /> Business Profile
+   488→              </h3>
+   489→              <div>
+   490→                <label className="text-xs text-neutral-500 mb-1 block">Business Name</label>
+   491→                <Input
+   492→                  value={editBizName}
+   493→                  onChange={(e) => setEditBizName(e.target.value)}
+   494→                  placeholder="e.g., My Consulting Firm"
+   495→                  className="text-sm"
+   496→                />
+   497→              </div>
+   498→              <div>
+   499→                <label className="text-xs text-neutral-500 mb-1 block">What is your business about?</label>
+   500→                <textarea
+   501→                  value={editBizDesc}
+   502→                  onChange={(e) => setEditBizDesc(e.target.value)}
+   503→                  placeholder="Describe your business — what you do, who your clients are, what products/services you offer..."
+   504→                  rows={3}
+   505→                  className="flex w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm placeholder:text-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40 focus-visible:border-red-500 transition-all resize-none"
+   506→                />
+   507→              </div>
+   508→            </CardContent>
+   509→          </Card>
+   510→        </motion.div>
+   511→      )}
+   512→
+   513→      {/* Mission Statement (non-edit) */}
+   514→      {!editing && missionStatement && (
+   515→        <motion.div {...fadeUp} transition={{ delay: 0.2 }}>
+   516→          <Card className="shadow-sm bg-gradient-to-br from-neutral-50/80 to-red-50/20">
+   517→            <CardContent className="p-6">
+   518→              <div className="flex items-center gap-2 mb-3">
+   519→                <Target className="h-5 w-5 text-red-500" />
+   520→                <h2 className="text-lg font-medium text-neutral-800">My Mission</h2>
+   521→              </div>
+   522→              <p className="text-sm text-neutral-700 leading-relaxed italic">
+   523→                &ldquo;{missionStatement}&rdquo;
+   524→              </p>
+   525→            </CardContent>
+   526→          </Card>
+   527→        </motion.div>
+   528→      )}
+   529→
+   530→      {/* Core Values (non-edit) */}
+   531→      <motion.div {...fadeUp} transition={{ delay: 0.3 }}>
+   532→        <Card className="shadow-sm border-neutral-200">
+   533→          <CardContent className="p-6">
+   534→            <div className="flex items-center gap-2 mb-4">
+   535→              <Star className="h-5 w-5 text-red-500" />
+   536→              <h2 className="text-lg font-medium text-neutral-800">Core Values</h2>
+   537→            </div>
+   538→            <div className="flex flex-wrap gap-2">
+   539→              {displayValues.map((value, i) => (
+   540→                <motion.div
+   541→                  key={value}
+   542→                  initial={{ opacity: 0, scale: 0.8 }}
+   543→                  animate={{ opacity: 1, scale: 1 }}
+   544→                  transition={{ delay: 0.4 + i * 0.05 }}
+   545→                >
+   546→                  <Badge variant="secondary" className="text-sm py-1.5 px-3 bg-neutral-50 text-neutral-700 border border-neutral-200 hover:bg-neutral-100">
+   547→                    {value}
+   548→                  </Badge>
+   549→                </motion.div>
+   550→              ))}
+   551→            </div>
+   552→          </CardContent>
+   553→        </Card>
+   554→      </motion.div>
+   555→
+   556→      {/* Business Profile Card (non-edit) */}
+   557→      {!editing && businessName && (
+   558→        <motion.div {...fadeUp} transition={{ delay: 0.35 }}>
+   559→          <Card className="shadow-sm bg-gradient-to-br from-amber-50/50 to-neutral-50/80 border-amber-200/50">
+   560→            <CardContent className="p-6">
+   561→              <div className="flex items-center gap-2 mb-3">
+   562→                <Building2 className="h-5 w-5 text-amber-600" />
+   563→                <h2 className="text-lg font-medium text-neutral-800">{businessName}</h2>
+   564→              </div>
+   565→              {businessDescription && (
+   566→                <p className="text-sm text-neutral-600 leading-relaxed">{businessDescription}</p>
+   567→              )}
+   568→            </CardContent>
+   569→          </Card>
+   570→        </motion.div>
+   571→      )}
+   572→
+   573→      {/* MyOS Mission */}
+   574→      <motion.div {...fadeUp} transition={{ delay: 0.4 }}>
+   575→        <Card className="shadow-sm border-neutral-200 bg-gradient-to-br from-neutral-50/80 to-red-50/20">
+   576→          <CardContent className="p-6">
+   577→            <div className="flex items-center gap-2 mb-3">
+   578→              <Sparkles className="h-5 w-5 text-red-600" />
+   579→              <h2 className="text-lg font-medium text-neutral-800">The {displayOsName} Mission</h2>
+   580→            </div>
+   581→            <p className="text-sm text-neutral-600 leading-relaxed mb-4">
+   582→              This is {displayName}&apos;s personal operating system — chief of staff, accountability partner, and strategic advisor.
+   583→              Built to help make thousands of small decisions that align with the deepest values until the life desired
+   584→              becomes the life actually lived.
+   585→            </p>
+   586→            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+   587→              {[
+   588→                { icon: <Target className="h-5 w-5 text-red-500" />, label: 'Accountability Partner', desc: 'Keeps you honest and aligned' },
+   589→                { icon: <BarChart3 className="h-5 w-5 text-red-500" />, label: 'Strategic Advisor', desc: 'Analyzes patterns and surfaces insights' },
+   590→                { icon: <Zap className="h-5 w-5 text-red-500" />, label: 'Chief of Staff', desc: 'Manages your daily operating cadence' },
+   591→              ].map((item) => (
+   592→                <div key={item.label} className="p-3 bg-white/60 rounded-xl border border-neutral-100">
+   593→                  {item.icon}
+   594→                  <p className="text-xs font-medium text-neutral-700 mt-1">{item.label}</p>
+   595→                  <p className="text-[10px] text-neutral-500">{item.desc}</p>
+   596→                </div>
+   597→              ))}
+   598→            </div>
+   599→          </CardContent>
+   600→        </Card>
+   601→      </motion.div>
+   602→
+   603→      {/* 7 Life Areas */}
+   604→      <motion.div {...fadeUp} transition={{ delay: 0.5 }}>
+   605→        <div className="flex items-center gap-2 mb-4">
+   606→          <Heart className="h-5 w-5 text-red-500" />
+   607→          <h2 className="text-lg font-medium text-neutral-800">7 Life Areas</h2>
+   608→        </div>
+   609→        <motion.div
+   610→          variants={stagger}
+   611→          initial="initial"
+   612→          animate="animate"
+   613→          className="grid grid-cols-1 sm:grid-cols-2 gap-3"
+   614→        >
+   615→          {lifeAreas.map((area, i) => (
+   616→            <motion.div
+   617→              key={area.label}
+   618→              variants={fadeUp}
+   619→              transition={{ delay: 0.5 + i * 0.05 }}
+   620→            >
+   621→              <Card className="shadow-sm border border-neutral-200 hover:shadow-md transition-shadow">
+   622→                <CardContent className="p-4">
+   623→                  <div className="flex items-start gap-3">
+   624→                    <div className="w-8 h-8 rounded-lg bg-neutral-50 flex items-center justify-center shrink-0">
+   625→                      {area.icon}
+   626→                    </div>
+   627→                    <div>
+   628→                      <h3 className="text-sm font-medium text-neutral-800">{area.label}</h3>
+   629→                      <p className="text-xs text-neutral-500 mt-0.5">{area.desc}</p>
+   630→                    </div>
+   631→                  </div>
+   632→                </CardContent>
+   633→              </Card>
+   634→            </motion.div>
+   635→          ))}
+   636→        </motion.div>
+   637→      </motion.div>
+   638→
+   639→      {/* Operating Cadence */}
+   640→      <motion.div {...fadeUp} transition={{ delay: 0.6 }}>
+   641→        <Card className="shadow-sm">
+   642→          <CardContent className="p-6">
+   643→            <div className="flex items-center gap-2 mb-4">
+   644→              <Clock className="h-5 w-5 text-red-500" />
+   645→              <h2 className="text-lg font-medium text-neutral-800">Operating Cadence</h2>
+   646→            </div>
+   647→            <div className="space-y-3">
+   648→              {cadence.map((item, i) => (
+   649→                <motion.div
+   650→                  key={item.label}
+   651→                  initial={{ opacity: 0, x: -10 }}
+   652→                  animate={{ opacity: 1, x: 0 }}
+   653→                  transition={{ delay: 0.7 + i * 0.08 }}
+   654→                  className="flex items-center gap-4 p-3 rounded-xl bg-neutral-50 hover:bg-neutral-100 transition-colors"
+   655→                >
+   656→                  <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shrink-0 shadow-sm">
+   657→                    {item.icon}
+   658→                  </div>
+   659→                  <div className="flex-1 min-w-0">
+   660→                    <span className="text-sm font-medium text-neutral-800">{item.label}</span>
+   661→                    <p className="text-xs text-neutral-500 mt-0.5">{item.desc}</p>
+   662→                  </div>
+   663→                  <Badge variant="outline" className="text-xs shrink-0 whitespace-nowrap">{item.time}</Badge>
+   664→                </motion.div>
+   665→              ))}
+   666→            </div>
+   667→          </CardContent>
+   668→        </Card>
+   669→      </motion.div>
+   670→
+   671→      {/* Footer Quote */}
+   672→      <motion.div
+   673→        initial={{ opacity: 0 }}
+   674→        animate={{ opacity: 1 }}
+   675→        transition={{ delay: 1 }}
+   676→        className="text-center py-4"
+   677→      >
+   678→        <div className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-neutral-50 to-red-50/30 border border-neutral-200">
+   679→          <Quote className="h-4 w-4 text-neutral-400" />
+   680→          <p className="text-sm font-medium text-neutral-600 italic">
+   681→            The life you want becomes the life you are actually living.
+   682→          </p>
+   683→        </div>
+   684→        <p className="text-[10px] text-neutral-400 mt-3">
+   685→          {displayOsName} &bull; Built with intention &bull; Aligned &bull; Disciplined &bull; Joyful
+   686→        </p>
+   687→      </motion.div>
+   688→    </div>
+   689→  )
+   690→}
+   691→

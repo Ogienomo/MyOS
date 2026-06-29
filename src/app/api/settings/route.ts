@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getUserId } from '@/lib/userid'
 
 const SETTINGS_KEY = 'user_settings'
 
@@ -27,10 +28,11 @@ const DEFAULT_SETTINGS = {
   googleReminderEmail: '',
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const userId = getUserId(request)
     const setting = await db.settings.findUnique({
-      where: { key: SETTINGS_KEY },
+      where: { userId_key: { userId, key: SETTINGS_KEY } },
     })
 
     const settings = setting ? JSON.parse(setting.value) : DEFAULT_SETTINGS
@@ -49,12 +51,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Settings object is required' }, { status: 400 })
     }
 
+    const userId = getUserId(request)
     const value = JSON.stringify({ ...DEFAULT_SETTINGS, ...settings })
 
     await db.settings.upsert({
-      where: { key: SETTINGS_KEY },
+      where: { userId_key: { userId, key: SETTINGS_KEY } },
       update: { value },
-      create: { key: SETTINGS_KEY, value },
+      create: { userId, key: SETTINGS_KEY, value },
     })
 
     return NextResponse.json({ success: true, settings: JSON.parse(value) })

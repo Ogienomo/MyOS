@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getUserId } from '@/lib/userid'
 
 // GET /api/finances/trends?months=6
 export async function GET(request: NextRequest) {
   try {
+    const userId = getUserId(request)
     const { searchParams } = new URL(request.url)
     const months = parseInt(searchParams.get('months') || '6', 10)
 
@@ -15,13 +17,14 @@ export async function GET(request: NextRequest) {
     // Fetch entries within the date range
     const entries = await db.financeEntry.findMany({
       where: {
+        userId,
         date: { gte: fromStr },
       },
       orderBy: { date: 'asc' },
     })
 
     // Also fetch all entries for net balance calculation
-    const allEntries = await db.financeEntry.findMany()
+    const allEntries = await db.financeEntry.findMany({ where: { userId } })
 
     // Aggregate by month
     const monthlyData: Record<string, { received: number; spent: number; net: number }> = {}

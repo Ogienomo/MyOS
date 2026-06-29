@@ -6,7 +6,7 @@ import { db } from '@/lib/db'
 export async function GET(request: NextRequest) {
   try {
     // Get client ID from settings
-    const clientIdSetting = await db.settings.findUnique({ where: { key: 'google_client_id' } })
+    const clientIdSetting = await db.settings.findUnique({ where: { userId_key: { userId: 'default', key: 'google_client_id' } } })
 
     if (!clientIdSetting && !process.env.GOOGLE_CLIENT_ID) {
       return NextResponse.json(

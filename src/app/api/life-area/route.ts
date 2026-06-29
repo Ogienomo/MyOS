@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getUserId } from '@/lib/userid'
 
 const VALID_AREAS = ['faith', 'health', 'career', 'havilah', 'finances', 'relationships', 'personalGrowth']
 
@@ -8,6 +9,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const area = searchParams.get('area')
+    const userId = getUserId(request)
 
     if (area && !VALID_AREAS.includes(area)) {
       return NextResponse.json(
@@ -16,7 +18,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const where: Record<string, string> = {}
+    const where: Record<string, string> = { userId }
     if (area) where.area = area
 
     const records = await db.lifeAreaProgress.findMany({
@@ -40,6 +42,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'area is required' }, { status: 400 })
     }
 
+    const userId = getUserId(request)
+
     if (!VALID_AREAS.includes(area)) {
       return NextResponse.json(
         { error: `Invalid area. Must be one of: ${VALID_AREAS.join(', ')}` },
@@ -47,9 +51,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Upsert by area (since area is unique)
+    // Upsert by userId+area (since [userId, area] is unique)
     const record = await db.lifeAreaProgress.upsert({
-      where: { area },
+      where: { userId_area: { userId, area } },
       update: {
         ...(currentStatus !== undefined && { currentStatus }),
         ...(idealVision !== undefined && { idealVision }),
@@ -58,6 +62,7 @@ export async function POST(request: NextRequest) {
         ...(motivation !== undefined && { motivation }),
       },
       create: {
+        userId,
         area,
         currentStatus: currentStatus || null,
         idealVision: idealVision || null,

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getUserId } from '@/lib/userid'
 
 interface BackupData {
   finances?: Array<Record<string, unknown>>
@@ -12,6 +13,7 @@ interface BackupData {
 
 export async function POST(request: NextRequest) {
   try {
+    const userId = getUserId(request)
     const body: BackupData = await request.json()
 
     if (!body || typeof body !== 'object') {
@@ -29,6 +31,7 @@ export async function POST(request: NextRequest) {
           if (!entry.date || !entry.type || entry.amount === undefined || !entry.category) continue
           await db.financeEntry.create({
             data: {
+              userId,
               date: String(entry.date),
               type: String(entry.type),
               amount: Number(entry.amount),
@@ -52,6 +55,7 @@ export async function POST(request: NextRequest) {
           if (!entry.date || !entry.area || !entry.content) continue
           await db.journalEntry.create({
             data: {
+              userId,
               date: String(entry.date),
               area: String(entry.area),
               title: entry.title ? String(entry.title) : null,
@@ -74,6 +78,7 @@ export async function POST(request: NextRequest) {
           if (!entry.type || !entry.area || !entry.content || !entry.date) continue
           await db.memory.create({
             data: {
+              userId,
               type: String(entry.type),
               area: String(entry.area),
               content: String(entry.content),
@@ -94,11 +99,12 @@ export async function POST(request: NextRequest) {
           if (!entry.area || !entry.title) continue
           // Check for existing goal with same title+area
           const existing = await db.goal.findFirst({
-            where: { area: String(entry.area), title: String(entry.title) },
+            where: { userId, area: String(entry.area), title: String(entry.title) },
           })
           if (existing) continue
           await db.goal.create({
             data: {
+              userId,
               area: String(entry.area),
               title: String(entry.title),
               description: entry.description ? String(entry.description) : null,

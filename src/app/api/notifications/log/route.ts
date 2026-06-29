@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getUserId } from '@/lib/userid'
 
 export async function POST(request: NextRequest) {
   try {
+    const userId = getUserId(request)
     const { type, message } = await request.json() as { type: string; message?: string }
 
     if (!type) {
@@ -11,6 +13,7 @@ export async function POST(request: NextRequest) {
 
     const log = await db.notificationLog.create({
       data: {
+        userId,
         type,
         message: message || null,
         delivered: true,
@@ -24,9 +27,11 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const userId = getUserId(request)
     const logs = await db.notificationLog.findMany({
+      where: { userId },
       orderBy: { sentAt: 'desc' },
       take: 50,
     })

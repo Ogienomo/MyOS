@@ -1,10 +1,12 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getUserId } from '@/lib/userid'
 import { getTodayInTimezone, formatDateInTimezone } from '@/lib/utils'
 
 // GET /api/dashboard - Aggregated dashboard data
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const userId = getUserId(request)
     const today = getTodayInTimezone()
 
     // Get start of current week (Sunday)
@@ -16,11 +18,12 @@ export async function GET() {
 
     // 1. Today's scores
     const todayScores = await db.lifeAreaScore.findUnique({
-      where: { date: today },
+      where: { userId_date: { userId, date: today } },
     })
 
     // 2. Recent check-ins (last 5)
     const recentCheckIns = await db.checkIn.findMany({
+      where: { userId },
       orderBy: { createdAt: 'desc' },
       take: 5,
     })
@@ -48,19 +51,20 @@ export async function GET() {
 
     // Check if today's check-in for the current/next type already exists
     const todayCheckIns = await db.checkIn.findMany({
-      where: { date: today },
+      where: { userId, date: today },
     })
     const completedCheckInTypes = todayCheckIns.map((ci) => ci.type)
 
     // 4. Active drift alerts
     const activeAlerts = await db.driftAlert.findMany({
-      where: { resolved: false },
+      where: { userId, resolved: false },
       orderBy: { createdAt: 'desc' },
     })
 
     // 5. Financial summary for the week
     const weekFinances = await db.financeEntry.findMany({
       where: {
+        userId,
         date: { gte: weekStartStr },
       },
       orderBy: { date: 'desc' },
@@ -75,6 +79,7 @@ export async function GET() {
 
     // 6. Goal completion stats
     const allGoals = await db.goal.findMany({
+      where: { userId },
       include: { tasks: true },
     })
 
@@ -110,12 +115,12 @@ export async function GET() {
     // 7. Score trend (last 7 days)
     const sevenDaysAgoStr = formatDateInTimezone(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000))
     const scoreTrend = await db.lifeAreaScore.findMany({
-      where: { date: { gte: sevenDaysAgoStr } },
+      where: { userId, date: { gte: sevenDaysAgoStr } },
       orderBy: { date: 'asc' },
     })
 
     // 8. Streaks
-    const streakRecords = await db.streak.findMany()
+    const streakRecords = await db.streak.findMany({ where: { userId } })
     const streaks = streakRecords.map(s => ({
       type: s.type,
       currentStreak: s.currentStreak,
@@ -125,7 +130,7 @@ export async function GET() {
 
     // 9. Today's quick log
     const todayQuickLog = await db.quickLog.findFirst({
-      where: { date: today },
+      where: { userId, date: today },
     })
 
     return NextResponse.json({

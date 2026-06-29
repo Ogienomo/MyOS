@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getUserId } from '@/lib/userid'
 
 // Helper: get today's date string
 function getToday(): string {
@@ -166,8 +167,9 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const activeOnly = searchParams.get('active') === 'true'
+    const userId = getUserId(request)
 
-    const where = activeOnly ? { active: true } : {}
+    const where = activeOnly ? { userId, active: true } : { userId }
 
     const habits = await db.habit.findMany({
       where,
@@ -250,6 +252,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const { title, description, area, frequency, customDays, targetPerWeek, color } = await request.json() as { title: string; description?: string; area: string; frequency: string; customDays?: number[]; targetPerWeek?: number; color?: string }
+    const userId = getUserId(request)
 
     if (!title || !area || !frequency) {
       return NextResponse.json(
@@ -268,6 +271,7 @@ export async function POST(request: NextRequest) {
 
     const habit = await db.habit.create({
       data: {
+        userId,
         title,
         description: description || null,
         area,
@@ -301,7 +305,8 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    const existing = await db.habit.findUnique({ where: { id } })
+    const userId = getUserId(request)
+    const existing = await db.habit.findFirst({ where: { id, userId } })
     if (!existing) {
       return NextResponse.json(
         { error: 'Habit not found' },
@@ -347,7 +352,9 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    const existing = await db.habit.findUnique({ where: { id } })
+    const userId = getUserId(request)
+
+    const existing = await db.habit.findFirst({ where: { id, userId } })
     if (!existing) {
       return NextResponse.json(
         { error: 'Habit not found' },

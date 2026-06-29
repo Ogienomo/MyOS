@@ -1,15 +1,17 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getUserId } from '@/lib/userid'
 
 // GET /api/insights/finance-summary — Weekly financial auto-tracking summary
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const userId = getUserId(request)
     const weekAgo = new Date()
     weekAgo.setDate(weekAgo.getDate() - 7)
     const weekAgoStr = weekAgo.toISOString().split('T')[0]
 
     const entries = await db.financeEntry.findMany({
-      where: { date: { gte: weekAgoStr } },
+      where: { userId, date: { gte: weekAgoStr } },
       orderBy: { date: 'desc' },
     })
 

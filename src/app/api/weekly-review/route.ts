@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getUserId } from '@/lib/userid'
 
 // Helper: get Monday of the week containing the given date
 function getWeekStart(dateStr: string): string {
@@ -124,6 +125,7 @@ function calculateWeekGrade(data: {
 // GET /api/weekly-review?date=2026-03-15
 export async function GET(request: NextRequest) {
   try {
+    const userId = getUserId(request)
     const { searchParams } = new URL(request.url)
     const dateParam = searchParams.get('date') || new Date().toISOString().split('T')[0]
 
@@ -149,22 +151,22 @@ export async function GET(request: NextRequest) {
       thisWeekHabitLogs,
       reviewNote,
     ] = await Promise.all([
-      db.lifeAreaScore.findMany({ where: { date: { gte: thisWeekStart, lte: thisWeekEnd } }, orderBy: { date: 'asc' } }),
-      db.goal.findMany({ include: { tasks: true } }),
-      db.financeEntry.findMany({ where: { date: { gte: thisWeekStart, lte: thisWeekEnd } }, orderBy: { date: 'desc' } }),
-      db.quickLog.findMany({ where: { date: { gte: thisWeekStart, lte: thisWeekEnd } }, orderBy: { date: 'asc' } }),
-      db.checkIn.findMany({ where: { date: { gte: thisWeekStart, lte: thisWeekEnd } } }),
-      db.journalEntry.findMany({ where: { date: { gte: thisWeekStart, lte: thisWeekEnd } } }),
-      db.memory.findMany({ where: { date: { gte: thisWeekStart, lte: thisWeekEnd } } }),
-      db.habit.findMany({ where: { active: true } }),
+      db.lifeAreaScore.findMany({ where: { userId, date: { gte: thisWeekStart, lte: thisWeekEnd } }, orderBy: { date: 'asc' } }),
+      db.goal.findMany({ where: { userId }, include: { tasks: true } }),
+      db.financeEntry.findMany({ where: { userId, date: { gte: thisWeekStart, lte: thisWeekEnd } }, orderBy: { date: 'desc' } }),
+      db.quickLog.findMany({ where: { userId, date: { gte: thisWeekStart, lte: thisWeekEnd } }, orderBy: { date: 'asc' } }),
+      db.checkIn.findMany({ where: { userId, date: { gte: thisWeekStart, lte: thisWeekEnd } } }),
+      db.journalEntry.findMany({ where: { userId, date: { gte: thisWeekStart, lte: thisWeekEnd } } }),
+      db.memory.findMany({ where: { userId, date: { gte: thisWeekStart, lte: thisWeekEnd } } }),
+      db.habit.findMany({ where: { userId, active: true } }),
       db.habitLog.findMany({ where: { date: { gte: thisWeekStart, lte: thisWeekEnd } } }),
-      db.weeklyReviewNote.findUnique({ where: { weekStart: thisWeekStart } }),
+      db.weeklyReviewNote.findUnique({ where: { userId_weekStart: { userId, weekStart: thisWeekStart } } }),
     ])
 
     // Fetch last week data
     const [lastWeekScores, lastWeekQuickLogs] = await Promise.all([
-      db.lifeAreaScore.findMany({ where: { date: { gte: lastWeekStart, lte: lastWeekEnd } }, orderBy: { date: 'asc' } }),
-      db.quickLog.findMany({ where: { date: { gte: lastWeekStart, lte: lastWeekEnd } }, orderBy: { date: 'asc' } }),
+      db.lifeAreaScore.findMany({ where: { userId, date: { gte: lastWeekStart, lte: lastWeekEnd } }, orderBy: { date: 'asc' } }),
+      db.quickLog.findMany({ where: { userId, date: { gte: lastWeekStart, lte: lastWeekEnd } }, orderBy: { date: 'asc' } }),
     ])
 
     // Scores
@@ -231,15 +233,15 @@ export async function GET(request: NextRequest) {
     const checkInsCompleted = [...new Set(thisWeekCheckIns.map(c => c.type))]
 
     // Last week data summary
-    const lastWeekFinances = await db.financeEntry.findMany({ where: { date: { gte: lastWeekStart, lte: lastWeekEnd } } })
+    const lastWeekFinances = await db.financeEntry.findMany({ where: { userId, date: { gte: lastWeekStart, lte: lastWeekEnd } } })
     const lastWeekReceived = lastWeekFinances.filter(f => f.type === 'received').reduce((s, f) => s + f.amount, 0)
     const lastWeekSpent = lastWeekFinances.filter(f => f.type === 'spent').reduce((s, f) => s + f.amount, 0)
-    const lastWeekJournals = await db.journalEntry.findMany({ where: { date: { gte: lastWeekStart, lte: lastWeekEnd } } })
-    const lastWeekCheckIns = await db.checkIn.findMany({ where: { date: { gte: lastWeekStart, lte: lastWeekEnd } } })
-    const lastWeekMemories = await db.memory.findMany({ where: { date: { gte: lastWeekStart, lte: lastWeekEnd } } })
+    const lastWeekJournals = await db.journalEntry.findMany({ where: { userId, date: { gte: lastWeekStart, lte: lastWeekEnd } } })
+    const lastWeekCheckIns = await db.checkIn.findMany({ where: { userId, date: { gte: lastWeekStart, lte: lastWeekEnd } } })
+    const lastWeekMemories = await db.memory.findMany({ where: { userId, date: { gte: lastWeekStart, lte: lastWeekEnd } } })
     const lastWeekHabitLogs = await db.habitLog.findMany({ where: { date: { gte: lastWeekStart, lte: lastWeekEnd } } })
-    const lastWeekGoals = await db.goal.findMany({ include: { tasks: true } })
-    const lastWeekHabits = await db.habit.findMany({ where: { active: true } })
+    const lastWeekGoals = await db.goal.findMany({ where: { userId }, include: { tasks: true } })
+    const lastWeekHabits = await db.habit.findMany({ where: { userId, active: true } })
 
     const lastWeekCompletedGoals = lastWeekGoals.filter(g => g.status === 'Completed').map(g => ({ id: g.id, title: g.title, area: g.area }))
     const lastWeekInProgressGoals = lastWeekGoals.filter(g => g.status === 'In Progress').map(g => ({ id: g.id, title: g.title, area: g.area, status: g.status }))
@@ -327,6 +329,7 @@ export async function GET(request: NextRequest) {
 // POST /api/weekly-review — Save review notes
 export async function POST(request: NextRequest) {
   try {
+    const userId = getUserId(request)
     const { weekStart, whatILearned, nextWeekFocus } = await request.json() as { weekStart: string; whatILearned?: string; nextWeekFocus?: string }
 
     if (!weekStart) {
@@ -334,12 +337,13 @@ export async function POST(request: NextRequest) {
     }
 
     const note = await db.weeklyReviewNote.upsert({
-      where: { weekStart },
+      where: { userId_weekStart: { userId, weekStart } },
       update: {
         ...(whatILearned !== undefined && { whatILearned }),
         ...(nextWeekFocus !== undefined && { nextWeekFocus }),
       },
       create: {
+        userId,
         weekStart,
         whatILearned: whatILearned || null,
         nextWeekFocus: nextWeekFocus || null,

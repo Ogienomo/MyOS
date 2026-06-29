@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getUserId } from '@/lib/userid'
 import ZAI from 'z-ai-web-dev-sdk'
 
 const AREA_NAMES: Record<string, string> = {
@@ -17,6 +18,7 @@ const ALL_AREAS = ['faith', 'health', 'career', 'havilah', 'finances', 'relation
 // POST - Auto-generate monthly summaries for all 7 life areas
 export async function POST(request: NextRequest) {
   try {
+    const userId = getUserId(request)
     const body = await request.json().catch(() => ({}))
     const { month } = body as { month?: string }
 
@@ -32,7 +34,7 @@ export async function POST(request: NextRequest) {
 
     for (const areaKey of ALL_AREAS) {
       try {
-        const summary = await generateSummaryForArea(areaKey, targetMonth)
+        const summary = await generateSummaryForArea(areaKey, targetMonth, userId)
         results.push({ area: areaKey, success: true, summary })
       } catch (err) {
         console.error(`Failed to generate summary for ${areaKey}:`, err)
@@ -54,7 +56,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function generateSummaryForArea(area: string, month: string) {
+async function generateSummaryForArea(area: string, month: string, userId: string) {
   const areaName = AREA_NAMES[area] || area
 
   // Calculate date range for the month
@@ -66,13 +68,14 @@ async function generateSummaryForArea(area: string, month: string) {
 
   // 1. Gather LifeAreaScore entries for the month
   const scores = await db.lifeAreaScore.findMany({
-    where: { date: { gte: startDate, lt: endDate } },
+    where: { userId, date: { gte: startDate, lt: endDate } },
     orderBy: { date: 'asc' },
   })
 
   // 2. Gather JournalEntry entries for the month in that area
   const journals = await db.journalEntry.findMany({
     where: {
+      userId,
       area,
       date: { gte: startDate, lt: endDate },
     },
@@ -81,13 +84,14 @@ async function generateSummaryForArea(area: string, month: string) {
 
   // 3. Gather Goal entries in that area (with status)
   const goals = await db.goal.findMany({
-    where: { area },
+    where: { userId, area },
     include: { tasks: true },
   })
 
   // 4. Gather Memory entries for the month in that area
   const memories = await db.memory.findMany({
     where: {
+      userId,
       area,
       date: { gte: startDate, lt: endDate },
     },
@@ -96,6 +100,7 @@ async function generateSummaryForArea(area: string, month: string) {
   // 5. Gather DriftAlert entries for the month in that area
   const driftAlerts = await db.driftAlert.findMany({
     where: {
+      userId,
       area,
       date: { gte: startDate, lt: endDate },
     },
@@ -105,7 +110,7 @@ async function generateSummaryForArea(area: string, month: string) {
   let financeContext = ''
   if (area === 'finances') {
     const financeEntries = await db.financeEntry.findMany({
-      where: { date: { gte: startDate, lt: endDate } },
+      where: { userId, date: { gte: startDate, lt: endDate } },
     })
     const totalReceived = financeEntries.filter(e => e.type === 'received').reduce((sum, e) => sum + e.amount, 0)
     const totalSpent = financeEntries.filter(e => e.type === 'spent').reduce((sum, e) => sum + e.amount, 0)
@@ -126,7 +131,7 @@ async function generateSummaryForArea(area: string, month: string) {
   // 7. HabitLog completion rate for habits in that area
   let habitContext = ''
   const habits = await db.habit.findMany({
-    where: { area, active: true },
+    where: { userId, area, active: true },
     include: {
       logs: {
         where: { date: { gte: startDate, lt: endDate } },
@@ -274,7 +279,7 @@ SCORE: 7`
 
   // Upsert into MonthlySummary table
   const summary = await db.monthlySummary.upsert({
-    where: { area_month: { area, month } },
+    where: { userId_area_month: { userId, area, month } },
     update: {
       summary: summaryText,
       highlights: JSON.stringify(highlights),

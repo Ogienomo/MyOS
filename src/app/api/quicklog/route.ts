@@ -1,21 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getUserId } from '@/lib/userid'
 import { getTodayInTimezone, formatDateInTimezone } from '@/lib/utils'
 
 // Recalculate and persist mood streak
-async function recalcMoodStreak() {
+async function recalcMoodStreak(userId: string) {
   try {
     const today = getTodayInTimezone()
     const quickLogs = await db.quickLog.findMany({
+      where: { userId },
       orderBy: { date: 'desc' },
       take: 60,
     })
 
     if (quickLogs.length === 0) {
       await db.streak.upsert({
-        where: { type: 'mood' },
+        where: { userId_type: { userId, type: 'mood' } },
         update: { currentStreak: 0, longestStreak: 0, lastDate: null },
-        create: { type: 'mood', currentStreak: 0, longestStreak: 0, lastDate: null },
+        create: { userId, type: 'mood', currentStreak: 0, longestStreak: 0, lastDate: null },
       })
       return
     }
@@ -53,9 +55,9 @@ async function recalcMoodStreak() {
     }
 
     await db.streak.upsert({
-      where: { type: 'mood' },
+      where: { userId_type: { userId, type: 'mood' } },
       update: { currentStreak, longestStreak: Math.max(longestStreak, currentStreak), lastDate: quickLogs[0]?.date || null },
-      create: { type: 'mood', currentStreak, longestStreak: Math.max(longestStreak, currentStreak), lastDate: quickLogs[0]?.date || null },
+      create: { userId, type: 'mood', currentStreak, longestStreak: Math.max(longestStreak, currentStreak), lastDate: quickLogs[0]?.date || null },
     })
   } catch (err) {
     console.error('Failed to recalc mood streak:', err)
@@ -63,13 +65,13 @@ async function recalcMoodStreak() {
 }
 
 // Recalculate overall streak (any check-in or mood log per day)
-async function recalcOverallStreak() {
+async function recalcOverallStreak(userId: string) {
   try {
     const today = getTodayInTimezone()
 
     const [allCheckIns, quickLogs] = await Promise.all([
-      db.checkIn.findMany({ orderBy: { date: 'desc' }, take: 60 }),
-      db.quickLog.findMany({ orderBy: { date: 'desc' }, take: 60 }),
+      db.checkIn.findMany({ where: { userId }, orderBy: { date: 'desc' }, take: 60 }),
+      db.quickLog.findMany({ where: { userId }, orderBy: { date: 'desc' }, take: 60 }),
     ])
 
     const allDates = new Set([
@@ -79,9 +81,9 @@ async function recalcOverallStreak() {
 
     if (allDates.size === 0) {
       await db.streak.upsert({
-        where: { type: 'overall' },
+        where: { userId_type: { userId, type: 'overall' } },
         update: { currentStreak: 0, longestStreak: 0, lastDate: null },
-        create: { type: 'overall', currentStreak: 0, longestStreak: 0, lastDate: null },
+        create: { userId, type: 'overall', currentStreak: 0, longestStreak: 0, lastDate: null },
       })
       return
     }
@@ -117,9 +119,9 @@ async function recalcOverallStreak() {
 
     const lastDate = sortedDates[0] || null
     await db.streak.upsert({
-      where: { type: 'overall' },
+      where: { userId_type: { userId, type: 'overall' } },
       update: { currentStreak, longestStreak: Math.max(longestStreak, currentStreak), lastDate },
-      create: { type: 'overall', currentStreak, longestStreak: Math.max(longestStreak, currentStreak), lastDate },
+      create: { userId, type: 'overall', currentStreak, longestStreak: Math.max(longestStreak, currentStreak), lastDate },
     })
   } catch (err) {
     console.error('Failed to recalc overall streak:', err)
@@ -128,6 +130,7 @@ async function recalcOverallStreak() {
 
 export async function GET(request: NextRequest) {
   try {
+    const userId = getUserId(request)
     const { searchParams } = new URL(request.url)
     const range = searchParams.get('range') // 'today' or 'recent' or 'week'
     const limit = parseInt(searchParams.get('limit') || '20', 10)
@@ -135,6 +138,7 @@ export async function GET(request: NextRequest) {
     if (range === 'recent') {
       // Get recent logs for display
       const logs = await db.quickLog.findMany({
+        where: { userId },
         orderBy: { createdAt: 'desc' },
         take: limit,
       })
@@ -147,7 +151,7 @@ export async function GET(request: NextRequest) {
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
       const weekAgoStr = formatDateInTimezone(sevenDaysAgo)
       const logs = await db.quickLog.findMany({
-        where: { date: { gte: weekAgoStr } },
+        where: { userId, date: { gte: weekAgoStr } },
         orderBy: { date: 'asc' },
       })
       return NextResponse.json({ logs })
@@ -156,7 +160,7 @@ export async function GET(request: NextRequest) {
     // Default: get today's most recent log
     const today = getTodayInTimezone()
     const log = await db.quickLog.findFirst({
-      where: { date: today },
+      where: { userId, date: today },
       orderBy: { createdAt: 'desc' },
     })
     return NextResponse.json({ log })
@@ -168,6 +172,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const userId = getUserId(request)
     const { mood, energy, focus, note } = await request.json() as { mood: number; energy: number; focus: number; note?: string }
 
     if (mood === undefined || energy === undefined || focus === undefined) {
@@ -181,6 +186,7 @@ export async function POST(request: NextRequest) {
     // Allow multiple quick logs per day - use create instead of upsert
     const log = await db.quickLog.create({
       data: {
+        userId,
         date: today,
         time,
         mood: Math.min(10, Math.max(1, Number(mood))),
@@ -191,7 +197,7 @@ export async function POST(request: NextRequest) {
     })
 
     // Recalculate mood and overall streaks after saving
-    await Promise.all([recalcMoodStreak(), recalcOverallStreak()])
+    await Promise.all([recalcMoodStreak(userId), recalcOverallStreak(userId)])
 
     return NextResponse.json({ log })
   } catch (error) {

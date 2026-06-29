@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getUserId } from '@/lib/userid'
 
 // All profile fields stored in Settings table
 const PROFILE_FIELDS = [
@@ -18,10 +19,11 @@ const PROFILE_FIELDS = [
 ] as const
 
 // GET /api/user-profile — Get the user's full profile
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const userId = getUserId(request)
     const settings = await db.settings.findMany({
-      where: { key: { in: PROFILE_FIELDS as unknown as string[] } },
+      where: { userId, key: { in: PROFILE_FIELDS as unknown as string[] } },
     })
 
     const map: Record<string, string> = {}
@@ -69,6 +71,7 @@ export async function GET() {
 // POST /api/user-profile — Set any profile fields
 export async function POST(request: NextRequest) {
   try {
+    const userId = getUserId(request)
     const body = await request.json()
     const {
       name,
@@ -89,21 +92,21 @@ export async function POST(request: NextRequest) {
       const osName = `${trimmedName}OS`
 
       await db.settings.upsert({
-        where: { key: 'user_name' },
+        where: { userId_key: { userId, key: 'user_name' } },
         update: { value: JSON.stringify(trimmedName) },
-        create: { key: 'user_name', value: JSON.stringify(trimmedName) },
+        create: { userId, key: 'user_name', value: JSON.stringify(trimmedName) },
       })
 
       await db.settings.upsert({
-        where: { key: 'os_name' },
+        where: { userId_key: { userId, key: 'os_name' } },
         update: { value: JSON.stringify(osName) },
-        create: { key: 'os_name', value: JSON.stringify(osName) },
+        create: { userId, key: 'os_name', value: JSON.stringify(osName) },
       })
 
       await db.settings.upsert({
-        where: { key: 'setup_complete' },
+        where: { userId_key: { userId, key: 'setup_complete' } },
         update: { value: JSON.stringify(true) },
-        create: { key: 'setup_complete', value: JSON.stringify(true) },
+        create: { userId, key: 'setup_complete', value: JSON.stringify(true) },
       })
     }
 
@@ -111,9 +114,9 @@ export async function POST(request: NextRequest) {
     const upsertField = async (key: string, value: unknown) => {
       if (value === undefined) return
       await db.settings.upsert({
-        where: { key },
+        where: { userId_key: { userId, key } },
         update: { value: JSON.stringify(value) },
-        create: { key, value: JSON.stringify(value) },
+        create: { userId, key, value: JSON.stringify(value) },
       })
     }
 
@@ -130,7 +133,7 @@ export async function POST(request: NextRequest) {
 
     // Return updated profile
     const settings = await db.settings.findMany({
-      where: { key: { in: PROFILE_FIELDS as unknown as string[] } },
+      where: { userId, key: { in: PROFILE_FIELDS as unknown as string[] } },
     })
 
     const map: Record<string, string> = {}

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getUserId } from '@/lib/userid'
 
 const DEFAULT_WIDGETS = [
   { widgetId: 'checkin', visible: true, order: 0, collapsed: false },
@@ -12,18 +13,21 @@ const DEFAULT_WIDGETS = [
 ]
 
 // GET /api/dashboard/widgets — list all widget settings
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const userId = getUserId(request)
     let widgets = await db.dashboardWidget.findMany({
+      where: { userId },
       orderBy: { order: 'asc' },
     })
 
     // Seed defaults if none exist
     if (widgets.length === 0) {
       await db.dashboardWidget.createMany({
-        data: DEFAULT_WIDGETS,
+        data: DEFAULT_WIDGETS.map(w => ({ ...w, userId })),
       })
       widgets = await db.dashboardWidget.findMany({
+        where: { userId },
         orderBy: { order: 'asc' },
       })
     }
@@ -38,6 +42,7 @@ export async function GET() {
 // PUT /api/dashboard/widgets — update widget settings
 export async function PUT(request: NextRequest) {
   try {
+    const userId = getUserId(request)
     const body = await request.json()
     const { widgets } = body as {
       widgets: { widgetId: string; visible?: boolean; order?: number; collapsed?: boolean }[]
@@ -55,7 +60,7 @@ export async function PUT(request: NextRequest) {
       if (w.collapsed !== undefined) data.collapsed = w.collapsed
 
       const updated = await db.dashboardWidget.update({
-        where: { widgetId: w.widgetId },
+        where: { userId_widgetId: { userId, widgetId: w.widgetId } },
         data,
       })
       results.push(updated)

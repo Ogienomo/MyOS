@@ -261,6 +261,7 @@ async function seedSampleGoals(): Promise<number> {
     for (const sg of sampleGoals) {
       await db.goal.create({
         data: {
+          userId: 'default',
           area,
           title: sg.title,
           description: sg.description,
@@ -327,6 +328,7 @@ async function processGoalsData(goalsData: Record<string, unknown>): Promise<{ g
 
         const goal = await db.goal.create({
           data: {
+            userId: 'default',
             area,
             title: parentGoalTitle,
             status: 'Not Started',
@@ -443,6 +445,7 @@ async function processGoalsData(goalsData: Record<string, unknown>): Promise<{ g
       } else {
         const goal = await db.goal.create({
           data: {
+            userId: 'default',
             area,
             title: goalTitle,
             description: description ? String(description) : null,
@@ -491,7 +494,7 @@ export async function POST() {
     // 2. Seed LifeAreaProgress for each area
     for (const [area, data] of Object.entries(VISION_DATA)) {
       await db.lifeAreaProgress.upsert({
-        where: { area },
+        where: { userId_area: { userId: 'default', area } },
         update: {
           currentStatus: data.currentStatus,
           idealVision: data.idealVision,
@@ -500,6 +503,7 @@ export async function POST() {
           motivation: data.motivation,
         },
         create: {
+          userId: 'default',
           area,
           currentStatus: data.currentStatus,
           idealVision: data.idealVision,

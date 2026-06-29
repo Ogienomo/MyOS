@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getUserId } from '@/lib/userid'
 
 // POST /api/goals/tasks - Add a task to a goal
 export async function POST(request: NextRequest) {
   try {
+    const userId = getUserId(request)
     const { goalId, title, difficulty, estimatedCost, notes, dependency } = await request.json() as { goalId: string; title: string; difficulty?: string; estimatedCost?: number; notes?: string; dependency?: string }
 
     if (!goalId || !title) {
@@ -11,6 +13,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Dedup check
+    const goal = await db.goal.findFirst({ where: { id: goalId, userId } })
+    if (!goal) {
+      return NextResponse.json({ error: 'Goal not found' }, { status: 404 })
+    }
+
     const existing = await db.task.findFirst({
       where: { goalId, title: { equals: title, mode: 'insensitive' } },
     })
@@ -51,6 +58,7 @@ export async function POST(request: NextRequest) {
 // PUT /api/goals/tasks - Update a task
 export async function PUT(request: NextRequest) {
   try {
+    const userId = getUserId(request)
     const { id, title, difficulty, estimatedCost, notes, status, dependency } = await request.json() as { id: string; title?: string; difficulty?: string; estimatedCost?: number; notes?: string; status?: string; dependency?: string }
 
     if (!id) {
@@ -86,6 +94,8 @@ export async function DELETE(request: NextRequest) {
     if (!id) {
       return NextResponse.json({ error: 'Task ID is required' }, { status: 400 })
     }
+
+    const userId = getUserId(request)
 
     await db.task.delete({ where: { id } })
     return NextResponse.json({ success: true })

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getUserId } from '@/lib/userid'
 import { getZAI } from '@/lib/ai'
 
 // GET /api/insights?type=alerts&resolved=false
@@ -9,6 +10,7 @@ import { getZAI } from '@/lib/ai'
 // GET /api/insights?type=ai-insights
 export async function GET(request: NextRequest) {
   try {
+    const userId = getUserId(request)
     const { searchParams } = new URL(request.url)
     const type = searchParams.get('type') // alerts, memories, mood-trends, ai-insights, or both
     const resolvedParam = searchParams.get('resolved')
@@ -16,7 +18,7 @@ export async function GET(request: NextRequest) {
 
     // Lightweight count endpoint — used by chat header badge
     if (type === 'memories-count') {
-      const total = await db.memory.count()
+      const total = await db.memory.count({ where: { userId } })
       return NextResponse.json({ total })
     }
 
@@ -27,7 +29,7 @@ export async function GET(request: NextRequest) {
       const weekAgoStr = sevenDaysAgo.toISOString().split('T')[0]
 
       const logs = await db.quickLog.findMany({
-        where: { date: { gte: weekAgoStr } },
+        where: { userId, date: { gte: weekAgoStr } },
         orderBy: { date: 'asc' },
       })
 
@@ -94,20 +96,22 @@ export async function GET(request: NextRequest) {
 
         const [recentLogs, recentCheckIns, recentMemories, recentChats] = await Promise.all([
           db.quickLog.findMany({
-            where: { date: { gte: weekAgoStr } },
+            where: { userId, date: { gte: weekAgoStr } },
             orderBy: { date: 'desc' },
             take: 14,
           }),
           db.checkIn.findMany({
+            where: { userId },
             orderBy: { createdAt: 'desc' },
             take: 5,
           }),
           db.memory.findMany({
+            where: { userId },
             orderBy: { createdAt: 'desc' },
             take: 10,
           }),
           db.chatMessage.findMany({
-            where: { role: 'user' },
+            where: { userId, role: 'user' },
             orderBy: { createdAt: 'desc' },
             take: 10,
           }),
@@ -237,7 +241,7 @@ Return ONLY the JSON, no markdown or explanation.`,
       if (resolved !== undefined) alertWhere.resolved = resolved
 
       result.driftAlerts = await db.driftAlert.findMany({
-        where: alertWhere,
+        where: { userId, ...alertWhere },
         orderBy: { createdAt: 'desc' },
       })
     }
@@ -246,10 +250,11 @@ Return ONLY the JSON, no markdown or explanation.`,
     if (!type || type === 'memories') {
       const [memories, total] = await Promise.all([
         db.memory.findMany({
+          where: { userId },
           orderBy: { createdAt: 'desc' },
           take: 20,
         }),
-        db.memory.count(),
+        db.memory.count({ where: { userId } }),
       ])
       result.memories = memories
       result.memoriesTotal = total
@@ -265,6 +270,7 @@ Return ONLY the JSON, no markdown or explanation.`,
 // POST /api/insights - Create a memory or drift alert
 export async function POST(request: NextRequest) {
   try {
+    const userId = getUserId(request)
     const { type, area, content, severity, date, memoryType } = await request.json() as { type: string; area: string; content: string; severity?: string; date: string; memoryType?: string }
 
     if (!type || !area || !content || !date) {
@@ -310,6 +316,7 @@ export async function POST(request: NextRequest) {
 
       const memory = await db.memory.create({
         data: {
+          userId,
           type: memoryType || 'pattern',
           area,
           content,
@@ -328,6 +335,7 @@ export async function POST(request: NextRequest) {
 
       const alert = await db.driftAlert.create({
         data: {
+          userId,
           area,
           severity,
           message: content,

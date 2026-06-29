@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getUserId } from '@/lib/userid'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const userId = getUserId(request)
     const reminders = await db.customReminder.findMany({
+      where: { userId },
       orderBy: { time: 'asc' },
     })
 
@@ -16,6 +19,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    const userId = getUserId(request)
     const { title, message, time, days } = await request.json() as { title: string; message?: string; time: string; days: number[] | string }
 
     if (!title || !time || !days) {
@@ -38,6 +42,7 @@ export async function POST(request: NextRequest) {
 
     const reminder = await db.customReminder.create({
       data: {
+        userId,
         title,
         message: message || '',
         time,
@@ -55,13 +60,14 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
+    const userId = getUserId(request)
     const { id, title, message, time, days, active } = await request.json() as { id: string; title?: string; message?: string; time?: string; days?: number[] | string; active?: boolean }
 
     if (!id) {
       return NextResponse.json({ error: 'ID is required' }, { status: 400 })
     }
 
-    const existing = await db.customReminder.findUnique({ where: { id } })
+    const existing = await db.customReminder.findFirst({ where: { id, userId } })
     if (!existing) {
       return NextResponse.json({ error: 'Reminder not found' }, { status: 404 })
     }
@@ -105,7 +111,8 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'ID is required' }, { status: 400 })
     }
 
-    const existing = await db.customReminder.findUnique({ where: { id } })
+    const userId = getUserId(request)
+    const existing = await db.customReminder.findFirst({ where: { id, userId } })
     if (!existing) {
       return NextResponse.json({ error: 'Reminder not found' }, { status: 404 })
     }

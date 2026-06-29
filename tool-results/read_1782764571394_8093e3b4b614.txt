@@ -1,0 +1,1271 @@
+     1→import { NextRequest, NextResponse } from 'next/server'
+     2→
+     3→// DeepSeek-V3 (deepseek-chat) responds in 2–8s. The previous default
+     4→// (deepseek-reasoner / R1) took 30–120s and caused client-side timeouts that
+     5→// broke memory persistence. We keep maxDuration high as a safety margin for
+     6→// very long context windows, but normal chats now finish well under 10s.
+     7→export const maxDuration = 300
+     8→
+     9→import { db } from '@/lib/db'
+    10→import { callZAIWithRetry, getOpenAIClient, buildSystemPrompt, formatTodaysDate } from '@/lib/ai'
+    11→import { getTodayInTimezone, formatDateInTimezone, getCurrentHourInTimezone, getCurrentTimeStringInTimezone, getCurrentMinutesInTimezone } from '@/lib/utils'
+    12→import { ChatMessageSchema, sanitizeForAI } from '@/lib/validation'
+    13→import { rateLimit, getClientIp } from '@/lib/rate-limit'
+    14→import { recalcStreaks } from '@/lib/streaks'
+    15→import OpenAI from 'openai'
+    16→
+    17→interface ChatRequestBody {
+    18→  message: string
+    19→  checkInType?: string
+    20→  history?: Array<{ role: 'user' | 'assistant'; content: string }>
+    21→  stream?: boolean
+    22→}
+    23→
+    24→interface LifeContext {
+    25→  recentCheckIns: Array<{ type: string; date: string; data: string }>
+    26→  recentScores: Array<{ date: string; faith: number; health: number; career: number; havilah: number; finances: number; relationships: number; personalGrowth: number; overall: number }>
+    27→  activeGoals: Array<{ id: string; area: string; title: string; status: string; tasks: Array<{ id: string; title: string; status: string }> }>
+    28→  activeAlerts: Array<{ id: string; area: string; severity: string; message: string }>
+    29→  recentMemories: Array<{ type: string; area: string; content: string; date: string }>
+    30→  recentMoodLogs: Array<{ date: string; time: string; mood: number; energy: number; focus: number; note: string | null }>
+    31→  recentFinances: Array<{ date: string; type: string; amount: number; category: string; purpose: string | null; notes: string | null }>
+    32→  weekFinances: { received: number; spent: number; net: number; count: number }
+    33→  lifeAreaProgress: Array<{ area: string; currentStatus: string | null; idealVision: string | null; blockers: string | null }>
+    34→  today: string
+    35→}
+    36→
+    37→async function buildContext(): Promise<LifeContext> {
+    38→  const today = formatTodaysDate()
+    39→
+    40→  const [
+    41→    recentCheckIns,
+    42→    recentScores,
+    43→    activeGoals,
+    44→    activeAlerts,
+    45→    recentMemories,
+    46→    recentMoodLogs,
+    47→    recentFinances,
+    48→    weekFinances,
+    49→    lifeAreaProgress,
+    50→  ] = await Promise.all([
+    51→    db.checkIn.findMany({ orderBy: { createdAt: 'desc' }, take: 14 }),
+    52→    db.lifeAreaScore.findMany({ orderBy: { date: 'desc' }, take: 5 }),
+    53→    db.goal.findMany({ where: { status: 'In Progress' }, include: { tasks: true }, take: 7 }),
+    54→    db.driftAlert.findMany({ where: { resolved: false }, orderBy: { createdAt: 'desc' }, take: 5 }),
+    55→    db.memory.findMany({ orderBy: { createdAt: 'desc' }, take: 20 }),
+    56→    db.quickLog.findMany({ orderBy: { createdAt: 'desc' }, take: 14 }),
+    57→    db.financeEntry.findMany({ orderBy: { createdAt: 'desc' }, take: 14 }),
+    58→    (async () => {
+    59→      const weekAgo = new Date()
+    60→      weekAgo.setDate(weekAgo.getDate() - 7)
+    61→      const weekAgoStr = formatDateInTimezone(weekAgo)
+    62→      const entries = await db.financeEntry.findMany({ where: { date: { gte: weekAgoStr } } })
+    63→      return {
+    64→        received: entries.filter(f => f.type === 'received').reduce((s, f) => s + f.amount, 0),
+    65→        spent: entries.filter(f => f.type === 'spent').reduce((s, f) => s + f.amount, 0),
+    66→        net: entries.filter(f => f.type === 'received').reduce((s, f) => s + f.amount, 0) - entries.filter(f => f.type === 'spent').reduce((s, f) => s + f.amount, 0),
+    67→        count: entries.length,
+    68→      }
+    69→    })(),
+    70→    db.lifeAreaProgress.findMany({ orderBy: { area: 'asc' } }),
+    71→  ])
+    72→
+    73→  return {
+    74→    recentCheckIns: recentCheckIns.map(ci => ({ type: ci.type, date: ci.date, data: ci.data })),
+    75→    recentScores: recentScores.map(s => ({ date: s.date, faith: s.faith, health: s.health, career: s.career, havilah: s.havilah, finances: s.finances, relationships: s.relationships, personalGrowth: s.personalGrowth, overall: s.overall })),
+    76→    activeGoals: activeGoals.map(g => ({ id: g.id, area: g.area, title: g.title, status: g.status, tasks: g.tasks.map(t => ({ id: t.id, title: t.title, status: t.status })) })),
+    77→    activeAlerts: activeAlerts.map(a => ({ id: a.id, area: a.area, severity: a.severity, message: a.message })),
+    78→    recentMemories: recentMemories.map(m => ({ type: m.type, area: m.area, content: m.content, date: m.date })),
+    79→    recentMoodLogs: recentMoodLogs.map(l => ({ date: l.date, time: l.time, mood: l.mood, energy: l.energy, focus: l.focus, note: l.note })),
+    80→    recentFinances: recentFinances.map(f => ({ date: f.date, type: f.type, amount: f.amount, category: f.category, purpose: f.purpose, notes: f.notes })),
+    81→    weekFinances,
+    82→    lifeAreaProgress: lifeAreaProgress.map(lap => ({ area: lap.area, currentStatus: lap.currentStatus, idealVision: lap.idealVision, blockers: lap.blockers })),
+    83→    today,
+    84→  }
+    85→}
+    86→
+    87→function formatContextForAI(ctx: LifeContext): string {
+    88→  const parts: string[] = []
+    89→
+    90→  if (ctx.recentCheckIns.length > 0) {
+    91→    parts.push('--- RECENT CHECK-INS ---')
+    92→    for (const ci of ctx.recentCheckIns) {
+    93→      parts.push(`[${ci.type}] ${ci.date}: ${ci.data.substring(0, 300)}`)
+    94→    }
+    95→  }
+    96→  if (ctx.recentScores.length > 0) {
+    97→    parts.push('--- RECENT LIFE SCORES ---')
+    98→    for (const s of ctx.recentScores) {
+    99→      parts.push(`${s.date}: Faith=${s.faith} Health=${s.health} Career=${s.career} Business=${s.havilah} Finances=${s.finances} Relationships=${s.relationships} PersonalGrowth=${s.personalGrowth} Overall=${s.overall}`)
+   100→    }
+   101→  }
+   102→  if (ctx.activeGoals.length > 0) {
+   103→    parts.push('--- ACTIVE GOALS ---')
+   104→    for (const g of ctx.activeGoals) {
+   105→      const completedTasks = g.tasks.filter(t => t.status === 'Completed').length
+   106→      parts.push(`[${g.area}] ${g.title} (${completedTasks}/${g.tasks.length} tasks done)`)
+   107→    }
+   108→  }
+   109→  if (ctx.activeAlerts.length > 0) {
+   110→    parts.push('--- ACTIVE DRIFT ALERTS ---')
+   111→    for (const a of ctx.activeAlerts) {
+   112→      parts.push(`[${a.severity}] ${a.area}: ${a.message}`)
+   113→    }
+   114→  }
+   115→  if (ctx.recentMemories.length > 0) {
+   116→    parts.push('--- RECENT MEMORIES ---')
+   117→    for (const m of ctx.recentMemories) {
+   118→      parts.push(`[${m.type}] ${m.area}: ${m.content}`)
+   119→    }
+   120→  }
+   121→  if (ctx.recentMoodLogs.length > 0) {
+   122→    parts.push('--- RECENT MOOD LOGS ---')
+   123→    for (const l of ctx.recentMoodLogs) {
+   124→      parts.push(`${l.date} ${l.time}: mood=${l.mood} energy=${l.energy} focus=${l.focus}${l.note ? ` "${l.note}"` : ''}`)
+   125→    }
+   126→  }
+   127→  if (ctx.recentFinances.length > 0) {
+   128→    parts.push('--- RECENT FINANCE ENTRIES ---')
+   129→    for (const f of ctx.recentFinances) {
+   130→      parts.push(`${f.date}: ${f.type} ₦${f.amount} (${f.category})${f.purpose ? ` — ${f.purpose}` : ''}`)
+   131→    }
+   132→  }
+   133→  if (ctx.weekFinances.count > 0) {
+   134→    parts.push('--- THIS WEEK FINANCES ---')
+   135→    parts.push(`Received: ₦${ctx.weekFinances.received.toLocaleString()} | Spent: ₦${ctx.weekFinances.spent.toLocaleString()} | Net: ₦${ctx.weekFinances.net.toLocaleString()}`)
+   136→  }
+   137→  if (ctx.lifeAreaProgress.length > 0) {
+   138→    parts.push('--- LIFE AREA PROGRESS ---')
+   139→    for (const lap of ctx.lifeAreaProgress) {
+   140→      parts.push(`[${lap.area}] Current: ${lap.currentStatus || 'Not set'} | Vision: ${lap.idealVision || 'Not set'}${lap.blockers ? ` | Blockers: ${lap.blockers}` : ''}`)
+   141→    }
+   142→  }
+   143→  parts.push(`--- CURRENT DATE: ${ctx.today} ---`)
+   144→  // Include the current time + time-of-day label so the AI is always
+   145→  // time-aware. Without this, the AI gives generic advice that doesn't match
+   146→  // the time (e.g. "execute today's plan" at 11:50 PM).
+   147→  // IMPORTANT: Use timezone-aware functions — `new Date().getHours()` returns
+   148→  // server-local time (UTC in production), which is off by 1 hour from the
+   149→  // user's timezone (Africa/Lagos, UTC+1).
+   150→  const hours = getCurrentHourInTimezone()
+   151→  const timeStr = getCurrentTimeStringInTimezone()
+   152→  let timeLabel: string
+   153→  if (hours < 10) timeLabel = 'MORNING (Morning Alignment window — start the day)'
+   154→  else if (hours < 14) timeLabel = 'MIDDAY (Midday Correction window — course-correct)'
+   155→  else if (hours < 17) timeLabel = 'AFTERNOON (execution time — push through)'
+   156→  else if (hours < 21) timeLabel = 'EVENING (Evening Review window — account for the day)'
+   157→  else if (hours < 23) timeLabel = 'LATE EVENING (reflect + prepare for tomorrow — do NOT say "execute today\'s plan")'
+   158→  else timeLabel = 'NIGHT (Praise should be resting — focus on tomorrow, NOT today. Do NOT say "execute today\'s plan")'
+   159→  parts.push(`--- CURRENT TIME: ${timeStr} (Africa/Lagos) ---`)
+   160→  parts.push(`--- TIME-OF-DAY: ${timeLabel} ---`)
+   161→
+   162→  return parts.join('\n')
+   163→}
+   164→
+   165→// Server-side strict mode check
+   166→function isWithinCheckInWindowServer(checkInType: string, settings: { strictMode: boolean; morningEnabled: boolean; morningTime: string; eveningEnabled: boolean; eveningTime: string; windowMinutes: number }): { allowed: boolean; message: string | null } {
+   167→  if (!settings.strictMode) return { allowed: true, message: null }
+   168→  if (!['morning', 'evening'].includes(checkInType)) return { allowed: true, message: null }
+   169→
+   170→  // Use timezone-aware current minutes — server-local time (UTC in prod)
+   171→  // would misalign check-in windows by the timezone offset.
+   172→  const currentMinutes = getCurrentMinutesInTimezone()
+   173→
+   174→  if (checkInType === 'morning') {
+   175→    if (!settings.morningEnabled) return { allowed: false, message: 'Morning check-in is disabled in your settings.' }
+   176→    const [h, m] = settings.morningTime.split(':').map(Number)
+   177→    const targetMinutes = h * 60 + m
+   178→    const windowMin = Math.max(0, targetMinutes - settings.windowMinutes)
+   179→    const windowMax = targetMinutes + settings.windowMinutes
+   180→    if (currentMinutes >= windowMin && currentMinutes <= windowMax) return { allowed: true, message: null }
+   181→    const nextH = Math.floor(windowMin / 60) % 24
+   182→    const nextM = windowMin % 60
+   183→    return { allowed: false, message: `Check-in window is closed. Your next morning check-in opens at ${nextH.toString().padStart(2, '0')}:${nextM.toString().padStart(2, '0')}. Strict mode is ON.` }
+   184→  }
+   185→
+   186→  if (checkInType === 'evening') {
+   187→    if (!settings.eveningEnabled) return { allowed: false, message: 'Evening check-in is disabled in your settings.' }
+   188→    const [h, m] = settings.eveningTime.split(':').map(Number)
+   189→    const targetMinutes = h * 60 + m
+   190→    const windowMin = Math.max(0, targetMinutes - settings.windowMinutes)
+   191→    const windowMax = targetMinutes + settings.windowMinutes
+   192→    if (currentMinutes >= windowMin && currentMinutes <= windowMax) return { allowed: true, message: null }
+   193→    const nextH = Math.floor(windowMin / 60) % 24
+   194→    const nextM = windowMin % 60
+   195→    return { allowed: false, message: `Check-in window is closed. Your next evening check-in opens at ${nextH.toString().padStart(2, '0')}:${nextM.toString().padStart(2, '0')}. Strict mode is ON.` }
+   196→  }
+   197→
+   198→  return { allowed: true, message: null }
+   199→}
+   200→
+   201→// ============================================================
+   202→// INTELLIGENT COACHING ENGINE
+   203→// Generates rich, contextual, personalized responses from data
+   204→// ============================================================
+   205→
+   206→const AREA_LABELS: Record<string, string> = {
+   207→  faith: 'Faith & Spiritual Life',
+   208→  health: 'Health & Wellness',
+   209→  career: 'Career & Professional Growth',
+   210→  havilah: 'Business & Entrepreneurship',
+   211→  finances: 'Finances & Stewardship',
+   212→  relationships: 'Relationships & Community',
+   213→  personalGrowth: 'Personal Growth & Learning',
+   214→}
+   215→
+   216→function analyzeScores(ctx: LifeContext): { lowest: string[]; highest: string[]; trend: string; analysis: string } {
+   217→  if (ctx.recentScores.length === 0) {
+   218→    return { lowest: [], highest: [], trend: 'no_data', analysis: 'No scores recorded yet. Start by scoring your life areas to get personalized insights.' }
+   219→  }
+   220→
+   221→  const latest = ctx.recentScores[0]
+   222→  const areas = ['faith', 'health', 'career', 'havilah', 'finances', 'relationships', 'personalGrowth'] as const
+   223→  const scored = areas.map(a => ({ area: a, score: latest[a] as number }))
+   224→
+   225→  const sorted = [...scored].sort((a, b) => a.score - b.score)
+   226→  const lowest = sorted.filter(s => s.score <= 3).map(s => s.area)
+   227→  const highest = sorted.filter(s => s.score >= 7).map(s => s.area)
+   228→
+   229→  let trend = 'stable'
+   230→  if (ctx.recentScores.length >= 2) {
+   231→    const prev = ctx.recentScores[ctx.recentScores.length - 1]
+   232→    const diff = latest.overall - prev.overall
+   233→    if (diff > 1) trend = 'improving'
+   234→    else if (diff < -1) trend = 'declining'
+   235→  }
+   236→
+   237→  const analysis = lowest.length > 0
+   238→    ? `Your weakest areas right now: **${lowest.map(a => AREA_LABELS[a]).join(', ')}**. These need urgent attention.`
+   239→    : highest.length > 0
+   240→    ? `You are strongest in: **${highest.map(a => AREA_LABELS[a]).join(', ')}**. Keep building on this momentum.`
+   241→    : 'Your scores are moderate across the board. Time to push for excellence.'
+   242→
+   243→  return { lowest, highest, trend, analysis }
+   244→}
+   245→
+   246→function analyzeFinances(ctx: LifeContext): string {
+   247→  if (ctx.weekFinances.count === 0) {
+   248→    return 'No financial data this week. Track every naira to stay accountable.'
+   249→  }
+   250→
+   251→  const { received, spent, net } = ctx.weekFinances
+   252→  const spendingRatio = received > 0 ? spent / received : 0
+   253→
+   254→  const parts: string[] = []
+   255→  parts.push(`This week: **₦${received.toLocaleString()}** in, **₦${spent.toLocaleString()}** out, **₦${net.toLocaleString()}** net.`)
+   256→
+   257→  if (net < 0) {
+   258→    parts.push('You are spending more than you are earning. This is not sustainable. Identify where the money is going and cut non-essential spending immediately.')
+   259→  } else if (spendingRatio > 0.8) {
+   260→    parts.push('Your spending-to-income ratio is dangerously high. You should aim to save at least 20% of what comes in.')
+   261→  } else if (net > 0) {
+   262→    parts.push('You have a positive net flow this week. Good discipline. Now think about where that surplus should go — savings, investment, or giving.')
+   263→  }
+   264→
+   265→  // Top spending categories
+   266→  const categoryMap: Record<string, number> = {}
+   267→  for (const f of ctx.recentFinances.filter(f => f.type === 'spent')) {
+   268→    categoryMap[f.category] = (categoryMap[f.category] || 0) + f.amount
+   269→  }
+   270→  const topCats = Object.entries(categoryMap).sort((a, b) => b[1] - a[1]).slice(0, 3)
+   271→  if (topCats.length > 0) {
+   272→    parts.push(`Top spending: ${topCats.map(([k, v]) => `**${k}** (₦${v.toLocaleString()})`).join(', ')}`)
+   273→  }
+   274→
+   275→  return parts.join('\n\n')
+   276→}
+   277→
+   278→function analyzeMood(ctx: LifeContext): string {
+   279→  if (ctx.recentMoodLogs.length === 0) {
+   280→    return 'No mood data recorded yet. Start logging your mood, energy, and focus to unlock pattern detection.'
+   281→  }
+   282→
+   283→  const avgMood = Math.round(ctx.recentMoodLogs.reduce((s, l) => s + l.mood, 0) / ctx.recentMoodLogs.length * 10) / 10
+   284→  const avgEnergy = Math.round(ctx.recentMoodLogs.reduce((s, l) => s + l.energy, 0) / ctx.recentMoodLogs.length * 10) / 10
+   285→  const avgFocus = Math.round(ctx.recentMoodLogs.reduce((s, l) => s + l.focus, 0) / ctx.recentMoodLogs.length * 10) / 10
+   286→
+   287→  const parts: string[] = []
+   288→  parts.push(`Your averages: Mood **${avgMood}/10**, Energy **${avgEnergy}/10**, Focus **${avgFocus}/10**.`)
+   289→
+   290→  if (avgMood < 4) {
+   291→    parts.push('Your mood has been consistently low. This is a signal — not something to push through. Ask yourself: What is draining you? What would genuinely lift your spirit? Talk to someone you trust.')
+   292→  } else if (avgMood >= 7) {
+   293→    parts.push('Your mood is strong. Protect the habits and rhythms that produce this. What is working? Do more of it.')
+   294→  }
+   295→
+   296→  if (avgEnergy < 4) {
+   297→    parts.push('Your energy is depleted. Sleep more. Eat better. Move your body. Low energy undermines everything else — this is not optional.')
+   298→  }
+   299→
+   300→  if (avgFocus < 4) {
+   301→    parts.push('Your focus has been scattered. Consider: Are you trying to do too many things at once? Pick one priority and give it your full attention for 90 minutes.')
+   302→  }
+   303→
+   304→  return parts.join('\n\n')
+   305→}
+   306→
+   307→function generateGoalCoaching(ctx: LifeContext): string {
+   308→  if (ctx.activeGoals.length === 0) {
+   309→    return 'No active goals right now. Set at least one goal to give your days direction. Without goals, drift is inevitable.'
+   310→  }
+   311→
+   312→  const parts: string[] = []
+   313→  parts.push(`You have **${ctx.activeGoals.length}** active goal${ctx.activeGoals.length > 1 ? 's' : ''}:`)
+   314→
+   315→  for (const g of ctx.activeGoals.slice(0, 5)) {
+   316→    const done = g.tasks.filter(t => t.status === 'Completed').length
+   317→    const total = g.tasks.length
+   318→    const pct = total > 0 ? Math.round(done / total * 100) : 0
+   319→    parts.push(`- **[${AREA_LABELS[g.area] || g.area}]** ${g.title} — ${pct}% complete (${done}/${total} tasks)`)
+   320→  }
+   321→
+   322→  // Find stalled goals (0% with tasks)
+   323→  const stalled = ctx.activeGoals.filter(g => g.tasks.length > 0 && g.tasks.filter(t => t.status === 'Completed').length === 0)
+   324→  if (stalled.length > 0) {
+   325→    parts.push(`\n**Warning:** ${stalled.length} goal${stalled.length > 1 ? 's' : ''} with zero progress: ${stalled.map(g => g.title).join(', ')}. This is where drift starts. Pick the most important one and complete one task today.`)
+   326→  }
+   327→
+   328→  return parts.join('\n')
+   329→}
+   330→
+   331→function generateDriftWarnings(ctx: LifeContext): string {
+   332→  if (ctx.activeAlerts.length === 0) return ''
+   333→
+   334→  const parts: string[] = ['## Active Drift Alerts']
+   335→  for (const a of ctx.activeAlerts) {
+   336→    parts.push(`- **[${a.severity.toUpperCase()}] ${AREA_LABELS[a.area] || a.area}**: ${a.message}`)
+   337→  }
+   338→  return parts.join('\n')
+   339→}
+   340→
+   341→/**
+   342→ * Generate a rich, contextual coaching response from data analysis.
+   343→ * This is the heart of the intelligent coaching engine.
+   344→ */
+   345→function generateCoachingResponse(message: string, ctx: LifeContext, checkInType?: string): string {
+   346→  const lowerMessage = message.toLowerCase()
+   347→  const scoreAnalysis = analyzeScores(ctx)
+   348→
+   349→  // === CHECK-IN RESPONSES ===
+   350→  if (checkInType) {
+   351→    return generateCheckInResponse(checkInType, ctx, scoreAnalysis)
+   352→  }
+   353→
+   354→  // === GREETING ===
+   355→  if (lowerMessage.match(/\b(hi|hello|hey|good morning|good evening|good afternoon)\b/)) {
+   356→    return generateGreeting(ctx, scoreAnalysis)
+   357→  }
+   358→
+   359→  // === HELP/COACHING ===
+   360→  if (lowerMessage.match(/\b(help|guide|coach|advise|suggest|what should|coaching)\b/)) {
+   361→    return generateFullCoachingSession(ctx, scoreAnalysis)
+   362→  }
+   363→
+   364→  // === FINANCE ===
+   365→  if (lowerMessage.match(/\b(money|finance|spent|received|budget|saving|naira|income|expense|₦)\b/)) {
+   366→    return generateFinanceResponse(ctx)
+   367→  }
+   368→
+   369→  // === MOOD/FEELING ===
+   370→  if (lowerMessage.match(/\b(mood|feeling|tired|energ|stress|anxi|happy|sad|motivat|drain|overwhelm|exhaust|depress|burn|sleep|rest)\b/)) {
+   371→    return generateMoodResponse(ctx, scoreAnalysis)
+   372→  }
+   373→
+   374→  // === GOALS/PROGRESS ===
+   375→  if (lowerMessage.match(/\b(goal|progress|track|accomplish|achieve|target|score|drift|move|stuck|stall)\b/)) {
+   376→    return generateProgressResponse(ctx, scoreAnalysis)
+   377→  }
+   378→
+   379→  // === FAITH ===
+   380→  if (lowerMessage.match(/\b(faith|prayer|devotion|bible|scripture|god|spirit|church|worship)\b/)) {
+   381→    return generateAreaSpecificResponse('faith', ctx, scoreAnalysis)
+   382→  }
+   383→
+   384→  // === HEALTH ===
+   385→  if (lowerMessage.match(/\b(health|gym|exercise|workout|sleep|diet|food|weight|energy|body)\b/)) {
+   386→    return generateAreaSpecificResponse('health', ctx, scoreAnalysis)
+   387→  }
+   388→
+   389→  // === CAREER ===
+   390→  if (lowerMessage.match(/\b(career|job|work|cv|resume|interview|skill|professional|application)\b/)) {
+   391→    return generateAreaSpecificResponse('career', ctx, scoreAnalysis)
+   392→  }
+   393→
+   394→  // === BUSINESS ===
+   395→  if (lowerMessage.match(/\b(havilah|business|entrepreneur|client|revenue|hub|writer)\b/)) {
+   396→    return generateAreaSpecificResponse('havilah', ctx, scoreAnalysis)
+   397→  }
+   398→
+   399→  // === RELATIONSHIPS ===
+   400→  if (lowerMessage.match(/\b(relationship|family|friend|mentor|community|people|connect)\b/)) {
+   401→    return generateAreaSpecificResponse('relationships', ctx, scoreAnalysis)
+   402→  }
+   403→
+   404→  // === DEFAULT: Full coaching overview ===
+   405→  return generateDefaultResponse(ctx, scoreAnalysis)
+   406→}
+   407→
+   408→function generateCheckInResponse(type: string, ctx: LifeContext, scoreAnalysis: ReturnType<typeof analyzeScores>): string {
+   409→  const typeLabels: Record<string, string> = {
+   410→    morning: 'Morning Alignment',
+   411→    midday: 'Midday Correction',
+   412→    evening: 'Evening Review',
+   413→    friday: 'Friday Strategic Review',
+   414→    sunday: 'Sunday Planning',
+   415→  }
+   416→  const label = typeLabels[type] || type
+   417→
+   418→  const parts: string[] = []
+   419→  parts.push(`## ${label} Received`)
+   420→  parts.push('')
+   421→  parts.push(`${label} logged, . Here's where you actually stand. No sugar-coating.`)
+   422→  parts.push('')
+   423→
+   424→  // Score snapshot
+   425→  if (ctx.recentScores.length > 0) {
+   426→    const s = ctx.recentScores[0]
+   427→    parts.push('## Truth of the Moment')
+   428→    parts.push('')
+   429→    parts.push(`Overall alignment: **${s.overall}/10**`)
+   430→    parts.push('')
+   431→    parts.push(`| Area | Score | Status |`)
+   432→    parts.push(`|------|-------|--------|`)
+   433→    const areas = ['faith', 'health', 'career', 'havilah', 'finances', 'relationships', 'personalGrowth'] as const
+   434→    for (const a of areas) {
+   435→      const score = s[a] as number
+   436→      const status = score <= 2 ? 'Critical' : score <= 4 ? 'Needs Work' : score <= 6 ? 'Moderate' : score <= 8 ? 'Good' : 'Strong'
+   437→      parts.push(`| ${AREA_LABELS[a]} | **${score}/10** | ${status} |`)
+   438→    }
+   439→    parts.push('')
+   440→
+   441→    if (scoreAnalysis.lowest.length > 0) {
+   442→      parts.push(`> **Warning:** ${scoreAnalysis.lowest.map(a => AREA_LABELS[a]).join(', ')} ${scoreAnalysis.lowest.length > 1 ? 'are' : 'is'} critically low. This needs immediate attention.`)
+   443→      parts.push('')
+   444→    }
+   445→  }
+   446→
+   447→  // Goal progress
+   448→  if (ctx.activeGoals.length > 0) {
+   449→    parts.push('## Active Goals')
+   450→    parts.push('')
+   451→    for (const g of ctx.activeGoals.slice(0, 4)) {
+   452→      const done = g.tasks.filter(t => t.status === 'Completed').length
+   453→      const total = g.tasks.length
+   454→      parts.push(`- **[${AREA_LABELS[g.area] || g.area}]** ${g.title} — ${done}/${total} tasks done`)
+   455→    }
+   456→    parts.push('')
+   457→  }
+   458→
+   459→  // Drift alerts
+   460→  if (ctx.activeAlerts.length > 0) {
+   461→    parts.push(generateDriftWarnings(ctx))
+   462→    parts.push('')
+   463→  }
+   464→
+   465→  // Finance snapshot
+   466→  if (ctx.weekFinances.count > 0) {
+   467→    parts.push('## Financial Snapshot')
+   468→    parts.push('')
+   469→    parts.push(analyzeFinances(ctx))
+   470→    parts.push('')
+   471→  }
+   472→
+   473→  // Mood snapshot
+   474→  if (ctx.recentMoodLogs.length > 0) {
+   475→    parts.push('## Mood & Energy')
+   476→    parts.push('')
+   477→    parts.push(analyzeMood(ctx))
+   478→    parts.push('')
+   479→  }
+   480→
+   481→  // Type-specific coaching
+   482→  parts.push('## Required Actions')
+   483→  parts.push('')
+   484→  if (type === 'morning') {
+   485→    parts.push('> **Before you start today:** What is the ONE outcome that would make today a win? Protect that time block ruthlessly. Everything else is secondary.')
+   486→  } else if (type === 'evening') {
+   487→    parts.push("> **Tonight's reflection:** What is one thing you did today that your future self will thank you for? And one thing you need to correct tomorrow? Name both.")
+   488→  } else if (type === 'midday') {
+   489→    parts.push('> **Midday check:** Are you working on what matters most right now, or just what feels most urgent? Recalibrate if needed.')
+   490→  } else if (type === 'friday') {
+   491→    parts.push('> **Weekly verdict:** Be honest — did this week move you closer to the life you want, or did you just stay busy? The difference matters.')
+   492→  } else if (type === 'sunday') {
+   493→    parts.push('> **Sunday planning:** Next week deserves intention, not reaction. Block your deep work now before the week fills up with noise.')
+   494→  }
+   495→
+   496→  return parts.join('\n')
+   497→}
+   498→
+   499→function generateGreeting(ctx: LifeContext, scoreAnalysis: ReturnType<typeof analyzeScores>): string {
+   500→  const hour = new Date().getHours()
+   501→  const timeGreeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
+   502→
+   503→  const parts: string[] = []
+   504→  parts.push(`${timeGreeting}, . Let's get to work.`)
+   505→  parts.push('')
+   506→
+   507→  // Quick status
+   508→  if (ctx.recentScores.length > 0) {
+   509→    const s = ctx.recentScores[0]
+   510→    parts.push(`Your current alignment: **${s.overall}/10** overall.`)
+   511→    if (scoreAnalysis.lowest.length > 0) {
+   512→      parts.push(`**${scoreAnalysis.lowest.map(a => AREA_LABELS[a]).join(', ')}** ${scoreAnalysis.lowest.length > 1 ? 'need' : 'needs'} urgent attention. Fix this now.`)
+   513→    }
+   514→    if (scoreAnalysis.highest.length > 0) {
+   515→      parts.push(`**${scoreAnalysis.highest.map(a => AREA_LABELS[a]).join(', ')}** ${scoreAnalysis.highest.length > 1 ? 'are' : 'is'} solid. Now bring the rest up to match.`)
+   516→    }
+   517→    parts.push('')
+   518→  }
+   519→
+   520→  if (ctx.activeAlerts.length > 0) {
+   521→    parts.push(`You have **${ctx.activeAlerts.length} drift alert${ctx.activeAlerts.length > 1 ? 's' : ''}** that need${ctx.activeAlerts.length === 1 ? 's' : ''} attention.`)
+   522→  }
+   523→
+   524→  if (ctx.activeGoals.length > 0) {
+   525→    parts.push(`You're working on **${ctx.activeGoals.length} goal${ctx.activeGoals.length > 1 ? 's' : ''}** right now.`)
+   526→  }
+   527→
+   528→  parts.push('')
+   529→  parts.push('What are we tackling today? Be specific.')
+   530→  parts.push('- Log a **check-in** for accountability')
+   531→  parts.push('- Review your **goals and progress**')
+   532→  parts.push('- Check your **finances**')
+   533→  parts.push('- Assess your **mood and energy**')
+   534→  parts.push('- Get **coaching** on any life area')
+   535→
+   536→  return parts.join('\n')
+   537→}
+   538→
+   539→function generateFullCoachingSession(ctx: LifeContext, scoreAnalysis: ReturnType<typeof analyzeScores>): string {
+   540→  const parts: string[] = []
+   541→  parts.push("Let me give you the full picture, . No sugar-coating.")
+   542→  parts.push('')
+   543→
+   544→  // Life scores
+   545→  if (ctx.recentScores.length > 0) {
+   546→    parts.push('## Life Score Assessment')
+   547→    parts.push('')
+   548→    parts.push(scoreAnalysis.analysis)
+   549→    parts.push('')
+   550→
+   551→    if (scoreAnalysis.lowest.length > 0) {
+   552→      parts.push('### Areas Needing Urgent Attention')
+   553→      parts.push('')
+   554→      for (const a of scoreAnalysis.lowest) {
+   555→        const progress = ctx.lifeAreaProgress.find(lap => lap.area === a)
+   556→        parts.push(`**${AREA_LABELS[a]}:**`)
+   557→        if (progress?.blockers) {
+   558→          parts.push(`- Blocker: ${progress.blockers}`)
+   559→        }
+   560→        parts.push(`- Action: What is one thing you can do TODAY to move this from ${scoreAnalysis.lowest.includes(a) ? 'critical' : 'low'} to moderate?`)
+   561→      }
+   562→      parts.push('')
+   563→    }
+   564→  }
+   565→
+   566→  // Goal coaching
+   567→  if (ctx.activeGoals.length > 0) {
+   568→    parts.push('## Goal Progress')
+   569→    parts.push('')
+   570→    parts.push(generateGoalCoaching(ctx))
+   571→    parts.push('')
+   572→  }
+   573→
+   574→  // Drift
+   575→  if (ctx.activeAlerts.length > 0) {
+   576→    parts.push(generateDriftWarnings(ctx))
+   577→    parts.push('')
+   578→  }
+   579→
+   580→  // Finance
+   581→  if (ctx.weekFinances.count > 0) {
+   582→    parts.push('## Financial Reality Check')
+   583→    parts.push('')
+   584→    parts.push(analyzeFinances(ctx))
+   585→    parts.push('')
+   586→  }
+   587→
+   588→  // Mood
+   589→  if (ctx.recentMoodLogs.length > 0) {
+   590→    parts.push('## Mood & Energy Status')
+   591→    parts.push('')
+   592→    parts.push(analyzeMood(ctx))
+   593→    parts.push('')
+   594→  }
+   595→
+   596→  // Bottom line
+   597→  parts.push('## Your Move')
+   598→  parts.push('')
+   599→  if (scoreAnalysis.lowest.length > 0) {
+   600→    parts.push(`> **Priority #1:** Address **${AREA_LABELS[scoreAnalysis.lowest[0]]}**. This is dragging everything else down. One action today.`)
+   601→  } else {
+   602→    parts.push('> You have the foundation. Now push for excellence. What is the one thing that would make the biggest difference this week?')
+   603→  }
+   604→
+   605→  return parts.join('\n')
+   606→}
+   607→
+   608→function generateFinanceResponse(ctx: LifeContext): string {
+   609→  const parts: string[] = []
+   610→  parts.push("Let's talk money, . Financial stewardship is not optional.")
+   611→  parts.push('')
+   612→
+   613→  parts.push('## Financial Snapshot')
+   614→  parts.push('')
+   615→  parts.push(analyzeFinances(ctx))
+   616→  parts.push('')
+   617→
+   618→  if (ctx.recentFinances.length > 0) {
+   619→    parts.push('## Recent Transactions')
+   620→    parts.push('')
+   621→    for (const f of ctx.recentFinances.slice(0, 5)) {
+   622→      const typeLabel = f.type === 'received' ? '**In**' : '**Out**'
+   623→      parts.push(`- ${typeLabel}: ₦${f.amount.toLocaleString()} — ${f.category}${f.purpose ? ` (${f.purpose})` : ''}`)
+   624→    }
+   625→    parts.push('')
+   626→  }
+   627→
+   628→  parts.push('## Financial Discipline Reminders')
+   629→  parts.push('')
+   630→  parts.push('- **Track every naira** — Money that isn\'t tracked will drift')
+   631→  parts.push('- **Ask before spending** — Is this aligned with your goals, or is it impulse?')
+   632→  parts.push('- **Review weekly** — Where is your money actually going?')
+   633→  parts.push('- **Save first** — Before spending, set aside your savings target')
+   634→  parts.push('')
+   635→  parts.push('> Log your finances in the **Finances** section so we can spot patterns together.')
+   636→
+   637→  return parts.join('\n')
+   638→}
+   639→
+   640→function generateMoodResponse(ctx: LifeContext, scoreAnalysis: ReturnType<typeof analyzeScores>): string {
+   641→  const parts: string[] = []
+   642→  parts.push("Your emotional and physical state drives everything else. Here's the data.")
+   643→  parts.push('')
+   644→
+   645→  parts.push('## Mood & Energy Analysis')
+   646→  parts.push('')
+   647→  parts.push(analyzeMood(ctx))
+   648→  parts.push('')
+   649→
+   650→  // Connect mood to scores
+   651→  if (scoreAnalysis.lowest.includes('health')) {
+   652→    parts.push('> Your **Health** score is low, which directly impacts mood and energy. Sleep, nutrition, and movement are not luxuries — they are the foundation.')
+   653→    parts.push('')
+   654→  }
+   655→
+   656→  parts.push('> **Your mood is data, not destiny.** Acknowledge it. Then act. What is one thing you will do right now to shift your state?')
+   657→
+   658→  return parts.join('\n')
+   659→}
+   660→
+   661→function generateProgressResponse(ctx: LifeContext, scoreAnalysis: ReturnType<typeof analyzeScores>): string {
+   662→  const parts: string[] = []
+   663→  parts.push("Let's look at where you actually are, . Not where you wish you were.")
+   664→  parts.push('')
+   665→
+   666→  if (ctx.recentScores.length > 0) {
+   667→    parts.push('## Life Score Trend')
+   668→    parts.push('')
+   669→    const s = ctx.recentScores[0]
+   670→    const areas = ['faith', 'health', 'career', 'havilah', 'finances', 'relationships', 'personalGrowth'] as const
+   671→    for (const a of areas) {
+   672→      parts.push(`- **${AREA_LABELS[a]}:** ${s[a]}/10`)
+   673→    }
+   674→    parts.push(`- **Overall:** ${s.overall}/10`)
+   675→    parts.push('')
+   676→
+   677→    if (ctx.recentScores.length >= 2) {
+   678→      const prev = ctx.recentScores[ctx.recentScores.length - 1]
+   679→      const diff = s.overall - prev.overall
+   680→      if (diff > 0) {
+   681→        parts.push(`Your overall score has **improved by ${diff} points** since your last assessment. Keep going.`)
+   682→      } else if (diff < 0) {
+   683→        parts.push(`Your overall score has **dropped by ${Math.abs(diff)} points** since your last assessment. This is drift in action.`)
+   684→      } else {
+   685→        parts.push('Your overall score is **unchanged**. Stability is good, but are you growing or just maintaining?')
+   686→      }
+   687→      parts.push('')
+   688→    }
+   689→  }
+   690→
+   691→  parts.push('## Goal Progress')
+   692→  parts.push('')
+   693→  parts.push(generateGoalCoaching(ctx))
+   694→  parts.push('')
+   695→
+   696→  if (ctx.activeAlerts.length > 0) {
+   697→    parts.push(generateDriftWarnings(ctx))
+   698→    parts.push('')
+   699→  }
+   700→
+   701→  parts.push('> **The question that matters:** Are you moving toward the life you want, or just staying busy? Be honest with yourself.')
+   702→
+   703→  return parts.join('\n')
+   704→}
+   705→
+   706→function generateAreaSpecificResponse(area: string, ctx: LifeContext, scoreAnalysis: ReturnType<typeof analyzeScores>): string {
+   707→  const label = AREA_LABELS[area] || area
+   708→  const latestScore = ctx.recentScores.length > 0 ? ctx.recentScores[0][area as keyof typeof ctx.recentScores[0]] : null
+   709→  const progress = ctx.lifeAreaProgress.find(lap => lap.area === area)
+   710→  const goals = ctx.activeGoals.filter(g => g.area === area)
+   711→  const alerts = ctx.activeAlerts.filter(a => a.area === area)
+   712→
+   713→  const parts: string[] = []
+   714→  parts.push(`Let me give you an honest assessment of your **${label}**.`)
+   715→  parts.push('')
+   716→
+   717→  // Score
+   718→  if (latestScore !== null) {
+   719→    const status = (latestScore as number) <= 3 ? 'This is critical' : (latestScore as number) <= 5 ? 'Needs attention' : (latestScore as number) <= 7 ? 'Moderate' : 'Doing well'
+   720→    parts.push(`## Current Score: **${latestScore}/10** — ${status}`)
+   721→    parts.push('')
+   722→  }
+   723→
+   724→  // Progress / vision
+   725→  if (progress) {
+   726→    if (progress.idealVision) {
+   727→      parts.push('## Your Vision')
+   728→      parts.push('')
+   729→      parts.push(progress.idealVision)
+   730→      parts.push('')
+   731→    }
+   732→    if (progress.currentStatus) {
+   733→      parts.push('## Current Reality')
+   734→      parts.push('')
+   735→      parts.push(progress.currentStatus)
+   736→      parts.push('')
+   737→    }
+   738→    if (progress.blockers) {
+   739→      parts.push('## Blockers')
+   740→      parts.push('')
+   741→      parts.push(progress.blockers)
+   742→      parts.push('')
+   743→    }
+   744→  }
+   745→
+   746→  // Goals
+   747→  if (goals.length > 0) {
+   748→    parts.push('## Goals in This Area')
+   749→    parts.push('')
+   750→    for (const g of goals) {
+   751→      const done = g.tasks.filter(t => t.status === 'Completed').length
+   752→      parts.push(`- **${g.title}** — ${done}/${g.tasks.length} tasks done`)
+   753→      for (const t of g.tasks.filter(t => t.status !== 'Completed').slice(0, 3)) {
+   754→        parts.push(`  - ${t.title}`)
+   755→      }
+   756→    }
+   757→    parts.push('')
+   758→  }
+   759→
+   760→  // Alerts
+   761→  if (alerts.length > 0) {
+   762→    parts.push('## Drift Alerts')
+   763→    parts.push('')
+   764→    for (const a of alerts) {
+   765→      parts.push(`- **${a.severity}:** ${a.message}`)
+   766→    }
+   767→    parts.push('')
+   768→  }
+   769→
+   770→  // Specific coaching per area
+   771→  parts.push('## Coach\'s Assessment')
+   772→  parts.push('')
+   773→  if (area === 'faith') {
+   774→    parts.push('Your spiritual life is the foundation of everything else. If this area is weak, everything else will eventually crack.')
+   775→    parts.push('')
+   776→    parts.push('> **Today\'s move:** Set a non-negotiable devotion time. Even 15 minutes of prayer and scripture before the day begins will shift everything.')
+   777→  } else if (area === 'health') {
+   778→    parts.push('Your body is the vehicle for everything God has called you to do. Ignoring it is not discipline — it\'s self-sabotage.')
+   779→    parts.push('')
+   780→    parts.push('> **Today\'s move:** Set a bedtime tonight. 7-8 hours of sleep is non-negotiable. Everything else depends on it.')
+   781→  } else if (area === 'career') {
+   782→    parts.push('Your career is how you steward your professional gifts. Intentionality here creates options and financial freedom.')
+   783→    parts.push('')
+   784→    parts.push('> **Today\'s move:** Spend 30 minutes on your CV or one job application. Small daily progress compounds.')
+   785→  } else if (area === 'havilah') {
+   786→    parts.push('Your business is your entrepreneurial calling. But activity is not progress. Ask: Did this move the business forward? Produce revenue? Build capacity?')
+   787→    parts.push('')
+   788→    parts.push('> **Today\'s move:** Identify the ONE thing that would move your business forward this week. Then do it before anything else.')
+   789→  } else if (area === 'finances') {
+   790→    parts.push(analyzeFinances(ctx))
+   791→  } else if (area === 'relationships') {
+   792→    parts.push('Relationships are the context for life. Isolation is dangerous. Connection is fuel.')
+   793→    parts.push('')
+   794→    parts.push('> **Today\'s move:** Reach out to one person. A text, a call, a prayer. Relationships don\'t maintain themselves.')
+   795→  } else if (area === 'personalGrowth') {
+   796→    parts.push('Growth is not automatic. If you\'re not intentionally learning, you\'re slowly becoming obsolete.')
+   797→    parts.push('')
+   798→    parts.push('> **Today\'s move:** Read for 20 minutes. Write one reflection. Learn one new thing. Small inputs, compounding returns.')
+   799→  }
+   800→
+   801→  return parts.join('\n')
+   802→}
+   803→
+   804→function generateDefaultResponse(ctx: LifeContext, scoreAnalysis: ReturnType<typeof analyzeScores>): string {
+   805→  const parts: string[] = []
+   806→  parts.push("Let me give you the full picture of where you stand right now, .")
+   807→  parts.push('')
+   808→
+   809→  // Score
+   810→  if (ctx.recentScores.length > 0) {
+   811→    parts.push('## Your Current Standing')
+   812→    parts.push('')
+   813→    parts.push(scoreAnalysis.analysis)
+   814→    parts.push('')
+   815→  }
+   816→
+   817→  // Goals
+   818→  if (ctx.activeGoals.length > 0) {
+   819→    parts.push(generateGoalCoaching(ctx))
+   820→    parts.push('')
+   821→  }
+   822→
+   823→  // Drift
+   824→  if (ctx.activeAlerts.length > 0) {
+   825→    parts.push(generateDriftWarnings(ctx))
+   826→    parts.push('')
+   827→  }
+   828→
+   829→  // Finance
+   830→  if (ctx.weekFinances.count > 0) {
+   831→    parts.push('## Financial Snapshot')
+   832→    parts.push('')
+   833→    parts.push(analyzeFinances(ctx))
+   834→    parts.push('')
+   835→  }
+   836→
+   837→  // Bottom line
+   838→  parts.push('## What Matters Right Now')
+   839→  parts.push('')
+   840→  parts.push('- **Alignment over activity** — Are your actions today moving you toward your vision?')
+   841→  parts.push('- **Discipline is freedom** — Every small decision compounds')
+   842→  parts.push('- **Drift is silent** — Check your life scores regularly')
+   843→  parts.push('')
+   844→
+   845→  if (scoreAnalysis.lowest.length > 0) {
+   846→    parts.push(`> **Priority:** ${AREA_LABELS[scoreAnalysis.lowest[0]]} needs your attention. One action today will start turning it around.`)
+   847→  } else {
+   848→    parts.push('> Stop being vague. Share specifics and I will give you exact, actionable steps. No more generalities.')
+   849→  }
+   850→
+   851→  return parts.join('\n')
+   852→}
+   853→
+   854→// GET /api/chat — Retrieve chat history
+   855→export async function GET(request: NextRequest) {
+   856→  try {
+   857→    const { searchParams } = new URL(request.url)
+   858→
+   859→    // ── Health check sub-path ──
+   860→    // GET /api/chat?health=1 — lightweight check if the endpoint is reachable
+   861→    // without loading any messages. Used by the chat client to test connectivity.
+   862→    if (searchParams.get('health') === '1') {
+   863→      return NextResponse.json({ ok: true, timestamp: new Date().toISOString() })
+   864→    }
+   865→
+   866→    const limit = Math.min(parseInt(searchParams.get('limit') || '50', 10), 200)
+   867→    const before = searchParams.get('before') // cursor: message ID to paginate before
+   868→    // When `latest=true`, return the NEWEST `limit` messages (in asc order for
+   869→    // display). Used by the chat client to fetch a server-side fallback after
+   870→    // an empty stream — without this flag the endpoint returns the OLDEST
+   871→    // `limit` messages, which would miss freshly-saved fallback responses on
+   872→    // established accounts.
+   873→    const latest = searchParams.get('latest') === 'true'
+   874→
+   875→    const where = before ? { createdAt: { lt: (await db.chatMessage.findUnique({ where: { id: before } }))?.createdAt ?? new Date() } } : {}
+   876→
+   877→    let messages
+   878→    if (latest) {
+   879→      messages = await db.chatMessage.findMany({
+   880→        where,
+   881→        orderBy: { createdAt: 'desc' },
+   882→        take: limit,
+   883→      })
+   884→      // Reverse to asc so callers can render oldest→newest consistently.
+   885→      messages.reverse()
+   886→    } else {
+   887→      messages = await db.chatMessage.findMany({
+   888→        where,
+   889→        orderBy: { createdAt: 'asc' },
+   890→        take: limit,
+   891→      })
+   892→    }
+   893→
+   894→    return NextResponse.json({
+   895→      messages: messages.map(m => ({
+   896→        id: m.id,
+   897→        role: m.role,
+   898→        content: m.content,
+   899→        checkInType: m.checkInType,
+   900→        timestamp: m.createdAt.toISOString(),
+   901→      })),
+   902→    })
+   903→  } catch (error) {
+   904→    console.error('Chat GET error:', error)
+   905→    return NextResponse.json({ error: 'Failed to fetch chat history' }, { status: 500 })
+   906→  }
+   907→}
+   908→
+   909→export async function POST(request: NextRequest) {
+   910→  try {
+   911→    // Rate limiting: 30 messages per minute per IP
+   912→    const ip = getClientIp(request)
+   913→    const rl = rateLimit(`chat:${ip}`, 30, 60_000)
+   914→    if (!rl.allowed) {
+   915→      return NextResponse.json(
+   916→        { error: 'Too many requests. Please slow down.' },
+   917→        { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.resetIn / 1000)) } }
+   918→      )
+   919→    }
+   920→
+   921→    const rawBody = await request.json()
+   922→    const parsed = ChatMessageSchema.safeParse(rawBody)
+   923→    if (!parsed.success) {
+   924→      return NextResponse.json({ error: parsed.error.errors[0].message }, { status: 400 })
+   925→    }
+   926→    const body = parsed.data as ChatRequestBody
+   927→    const { checkInType, history, stream: streamMode } = body
+   928→    const message = sanitizeForAI(body.message)
+   929→    const today = getTodayInTimezone()
+   930→
+   931→    // Server-side strict mode enforcement for check-ins
+   932→    if (checkInType) {
+   933→      try {
+   934→        const settingsRecord = await db.settings.findUnique({ where: { key: 'user_settings' } })
+   935→        if (settingsRecord) {
+   936→          const settings = JSON.parse(settingsRecord.value)
+   937→          const checkInWindows = settings.checkInWindows || {}
+   938→          const { allowed, message: strictMessage } = isWithinCheckInWindowServer(checkInType, {
+   939→            strictMode: checkInWindows.strictMode ?? false,
+   940→            morningEnabled: checkInWindows.morningEnabled ?? true,
+   941→            morningTime: checkInWindows.morningTime ?? '05:00',
+   942→            eveningEnabled: checkInWindows.eveningEnabled ?? true,
+   943→            eveningTime: checkInWindows.eveningTime ?? '20:30',
+   944→            windowMinutes: checkInWindows.windowMinutes ?? 60,
+   945→          })
+   946→          if (!allowed) {
+   947→            return NextResponse.json(
+   948→              { error: 'Check-in window closed', message: strictMessage || 'Strict mode is enabled. Please check in during your scheduled window.' },
+   949→              { status: 403 }
+   950→            )
+   951→          }
+   952→        }
+   953→      } catch (settingsError) {
+   954→        console.error('Failed to check strict mode settings:', settingsError)
+   955→      }
+   956→    }
+   957→
+   958→    // Store user message — best-effort. A transient DB write failure (e.g.
+   959→    // readonly SQLite in some sandboxes, or a momentary PostgreSQL connection
+   960→    // hiccup on Vercel) must NOT block the AI response. We log and continue;
+   961→    // the user's message simply won't appear in history, which is far better
+   962→    // than surfacing a hard 500 "Failed to generate response" to the user.
+   963→    let userMessage: { id: string } | null = null
+   964→    try {
+   965→      userMessage = await db.chatMessage.create({
+   966→        data: {
+   967→          role: 'user',
+   968→          content: message,
+   969→          checkInType: checkInType || null,
+   970→        },
+   971→      })
+   972→    } catch (userMsgErr) {
+   973→      console.error('Failed to persist user message (continuing anyway):', userMsgErr)
+   974→    }
+   975→
+   976→    // Build context from database (used by both AI and fallback)
+   977→    const ctx = await buildContext()
+   978→    let assistantContent = ''
+   979→    let usedAI = false
+   980→
+   981→    // Try to get AI response with retry
+   982→    try {
+   983→      const contextStr = formatContextForAI(ctx)
+   984→
+   985→      const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
+   986→        { role: 'system', content: buildSystemPrompt(
+   987→          (await db.settings.findUnique({ where: { key: 'user_name' } }))?.value ? JSON.parse((await db.settings.findUnique({ where: { key: 'user_name' } }))!.value) : '',
+   988→          (await db.settings.findUnique({ where: { key: 'os_name' } }))?.value ? JSON.parse((await db.settings.findUnique({ where: { key: 'os_name' } }))!.value) : 'MyOS'
+   989→        ) },
+   990→      ]
+   991→
+   992→      if (contextStr) {
+   993→        // DeepSeek-V3 (deepseek-chat) has a 64K context window — allow plenty of
+   994→        // context so the AI can see all check-ins, entries, and history for the day.
+   995→        const truncated = contextStr.length > 24000
+   996→          ? contextStr.slice(0, 24000) + '\n[...context truncated for brevity...]'
+   997→          : contextStr
+   998→        messages.push({
+   999→          role: 'system',
+  1000→          content: `CURRENT CONTEXT FOR THIS CONVERSATION:\n${truncated}`,
+  1001→        })
+  1002→      }
+  1003→
+  1004→      if (history && Array.isArray(history)) {
+  1005→        for (const msg of history.slice(-30)) {
+  1006→          messages.push({
+  1007→            role: msg.role as 'user' | 'assistant',
+  1008→            content: msg.content,
+  1009→          })
+  1010→        }
+  1011→      }
+  1012→
+  1013→      messages.push({ role: 'user', content: message })
+  1014→
+  1015→      // ── Streaming path ──
+  1016→      if (streamMode) {
+  1017→        try {
+  1018→          const openai = getOpenAIClient()
+  1019→
+  1020→          // deepseek-chat = DeepSeek-V3. Fast (2–8s), conversational, streams
+  1021→          // the first token immediately, and supports temperature for varied
+  1022→          // coaching responses. This is the correct model for real-time chat.
+  1023→          // (deepseek-reasoner / R1 was used previously — it thinks for 30–120s
+  1024→          // before replying, which caused client timeouts and broke memory
+  1025→          // persistence because the fire-and-forget smart-sync never ran.)
+  1026→          const stream = await openai.chat.completions.create({
+  1027→            model: 'deepseek-chat',
+  1028→            messages: messages as OpenAI.ChatCompletionMessageParam[],
+  1029→            max_tokens: 4000,
+  1030→            temperature: 0.7,
+  1031→            stream: true,
+  1032→          })
+  1033→
+  1034→          const encoder = new TextEncoder()
+  1035→          let fullText = ''
+  1036→
+  1037→          // We use a promise to track when the stream finishes so we can save
+  1038→          // the assistant message to the DB AFTER the response is sent. This is
+  1039→          // critical: if we save inside ReadableStream.start(), the DB write may
+  1040→          // never complete if the client disconnects mid-stream (mobile, network
+  1041→          // drops, tab close). By moving the save to a fire-and-forget promise
+  1042→          // that's independent of the stream lifecycle, we ensure the assistant
+  1043→          // response is ALWAYS persisted even if the client disconnects.
+  1044→          let streamResolve: (text: string) => void
+  1045→          const streamDone = new Promise<string>(resolve => { streamResolve = resolve })
+  1046→
+  1047→          const readable = new ReadableStream({
+  1048→            async start(controller) {
+  1049→              try {
+  1050→                for await (const chunk of stream) {
+  1051→                  // Skip internal reasoning tokens — only stream the final answer
+  1052→                  const delta = chunk.choices[0]?.delta as { content?: string; reasoning_content?: string }
+  1053→                  const content = delta?.content
+  1054→                  if (content) {
+  1055→                    fullText += content
+  1056→                    controller.enqueue(encoder.encode(content))
+  1057→                  }
+  1058→                }
+  1059→                // Signal to the client that the stream completed normally
+  1060→                controller.enqueue(encoder.encode('\x00[DONE]'))
+  1061→              } catch (streamErr) {
+  1062→                console.error('Stream iteration error:', streamErr)
+  1063→                // Signal stream error to client
+  1064→                controller.enqueue(encoder.encode('\x00[ERROR]'))
+  1065→              }
+  1066→
+  1067→              // Fallback: if the OpenAI stream produced nothing (e.g. it
+  1068→              // errored immediately or returned zero chunks), synthesize a
+  1069→              // real coaching response and stream it to the client so the
+  1070→              // user never sees an empty AI bubble. The fallback is also
+  1071→              // persisted to the DB below — mirroring the normal success path.
+  1072→              if (!fullText) {
+  1073→                let fallback = ''
+  1074→                try {
+  1075→                  fallback = generateCoachingResponse(message, ctx, checkInType)
+  1076→                } catch (genErr) {
+  1077→                  console.error('Fallback generateCoachingResponse failed:', genErr)
+  1078→                }
+  1079→                if (!fallback) {
+  1080→                  fallback = "I'm here. Tell me more about what's going on."
+  1081→                }
+  1082→                fullText = fallback
+  1083→                try {
+  1084→                  controller.enqueue(encoder.encode(fallback))
+  1085→                } catch (enqueueErr) {
+  1086→                  console.error('Fallback enqueue error:', enqueueErr)
+  1087→                }
+  1088→              }
+  1089→
+  1090→              controller.close()
+  1091→              // Resolve the promise with the full text so the DB save
+  1092→              // can happen independently of the stream lifecycle.
+  1093→              streamResolve(fullText)
+  1094→            },
+  1095→          })
+  1096→
+  1097→          // Fire-and-forget: save the assistant message to the DB after the
+  1098→          // stream completes. This runs independently of the client connection
+  1099→          // state — even if the client disconnects, this promise resolves and
+  1100→          // the message is persisted.
+  1101→          streamDone.then(async (text) => {
+  1102→            if (!text) return
+  1103→            try {
+  1104→              await db.chatMessage.create({
+  1105→                data: {
+  1106→                  role: 'assistant',
+  1107→                  content: text,
+  1108→                  checkInType: checkInType || null,
+  1109→                },
+  1110→              })
+  1111→
+  1112→              if (checkInType) {
+  1113→                await db.checkIn.upsert({
+  1114→                  where: { id: `${today}-${checkInType}` },
+  1115→                  create: {
+  1116→                    id: `${today}-${checkInType}`,
+  1117→                    type: checkInType,
+  1118→                    date: today,
+  1119→                    data: JSON.stringify({ message }),
+  1120→                    aiResponse: JSON.stringify({ response: text }),
+  1121→                  },
+  1122→                  update: {
+  1123→                    data: JSON.stringify({ message }),
+  1124→                    aiResponse: JSON.stringify({ response: text }),
+  1125→                  },
+  1126→                })
+  1127→              }
+  1128→
+  1129→              // Fire-and-forget smart-sync
+  1130→              fetch(new URL('/api/smart-sync', request.url), {
+  1131→                method: 'POST',
+  1132→                headers: { 'Content-Type': 'application/json' },
+  1133→                body: JSON.stringify({ message, checkInType }),
+  1134→              }).catch(syncErr => console.error('Smart-sync error in streaming chat:', syncErr))
+  1135→
+  1136→              // Fire-and-forget streak recalculation
+  1137→              recalcStreaks(checkInType || undefined).catch(() => {})
+  1138→            } catch (dbErr) {
+  1139→              console.error('Post-stream DB save error:', dbErr)
+  1140→            }
+  1141→          }).catch(err => {
+  1142→            console.error('Stream done promise error:', err)
+  1143→          })
+  1144→
+  1145→          return new Response(readable, {
+  1146→            headers: {
+  1147→              'Content-Type': 'text/plain; charset=utf-8',
+  1148→              'Cache-Control': 'no-cache, no-transform',
+  1149→              'X-Accel-Buffering': 'no',
+  1150→              'Transfer-Encoding': 'chunked',
+  1151→            },
+  1152→          })
+  1153→        } catch (streamInitError) {
+  1154→          console.error('Streaming init failed, falling back to non-streaming:', streamInitError)
+  1155→          // Fall through to non-streaming path below
+  1156→        }
+  1157→      }
+  1158→
+  1159→      // ── Non-streaming path ──
+  1160→      // deepseek-chat (V3) supports temperature — use 0.7 for varied, natural
+  1161→      // coaching responses instead of robotic deterministic output.
+  1162→      const aiResponse = await callZAIWithRetry(messages, 2, { temperature: 0.7 })
+  1163→      if (aiResponse) {
+  1164→        assistantContent = aiResponse
+  1165→        usedAI = true
+  1166→      }
+  1167→    } catch (aiError) {
+  1168→      console.error('AI generation failed, using intelligent fallback:', aiError)
+  1169→    }
+  1170→
+  1171→    // Use intelligent coaching engine if AI didn't produce a response
+  1172→    if (!usedAI) {
+  1173→      assistantContent = generateCoachingResponse(message, ctx, checkInType)
+  1174→    }
+  1175→
+  1176→    // Store assistant message — best-effort (mirror of user-message handling).
+  1177→    // If the DB write fails we still return the generated response to the
+  1178→    // client rather than 500ing.
+  1179→    let assistantMessage: { id: string } | null = null
+  1180→    try {
+  1181→      assistantMessage = await db.chatMessage.create({
+  1182→        data: {
+  1183→          role: 'assistant',
+  1184→          content: assistantContent,
+  1185→          checkInType: checkInType || null,
+  1186→        },
+  1187→      })
+  1188→    } catch (assistantMsgErr) {
+  1189→      console.error('Failed to persist assistant message (returning response anyway):', assistantMsgErr)
+  1190→    }
+  1191→
+  1192→    // Store check-in if type is provided — best-effort. A DB failure here
+  1193→    // must not prevent the response from being returned.
+  1194→    if (checkInType) {
+  1195→      try {
+  1196→        await db.checkIn.upsert({
+  1197→          where: { id: `${today}-${checkInType}` },
+  1198→          create: {
+  1199→            id: `${today}-${checkInType}`,
+  1200→            type: checkInType,
+  1201→            date: today,
+  1202→            data: JSON.stringify({ message }),
+  1203→            aiResponse: JSON.stringify({ response: assistantContent }),
+  1204→          },
+  1205→          update: {
+  1206→            data: JSON.stringify({ message }),
+  1207→            aiResponse: JSON.stringify({ response: assistantContent }),
+  1208→          },
+  1209→        })
+  1210→      } catch (checkInErr) {
+  1211→        console.error('Failed to persist check-in (returning response anyway):', checkInErr)
+  1212→      }
+  1213→      // Recalculate streaks after check-in
+  1214→      recalcStreaks(checkInType).catch(() => {})
+  1215→    }
+  1216→
+  1217→    // Smart-sync
+  1218→    let syncResult = { goalsUpdated: 0, tasksUpdated: 0, financeEntriesCreated: 0 }
+  1219→    try {
+  1220→      const syncRes = await fetch(new URL('/api/smart-sync', request.url), {
+  1221→        method: 'POST',
+  1222→        headers: { 'Content-Type': 'application/json' },
+  1223→        body: JSON.stringify({ message, checkInType }),
+  1224→      })
+  1225→      if (syncRes.ok) {
+  1226→        const syncData = await syncRes.json()
+  1227→        if (syncData.applied) {
+  1228→          syncResult = syncData.applied
+  1229→        }
+  1230→      }
+  1231→    } catch (syncError) {
+  1232→      console.error('Smart-sync error in chat:', syncError)
+  1233→    }
+  1234→
+  1235→    return NextResponse.json({
+  1236→      response: assistantContent,
+  1237→      messageId: assistantMessage?.id ?? null,
+  1238→      userMessageId: userMessage?.id ?? null,
+  1239→      syncResult,
+  1240→      _meta: { usedAI },
+  1241→    })
+  1242→  } catch (error) {
+  1243→    console.error('Chat API error:', error)
+  1244→    return NextResponse.json(
+  1245→      { error: 'Failed to generate response' },
+  1246→      { status: 500 }
+  1247→    )
+  1248→  }
+  1249→}
+  1250→
+  1251→// DELETE /api/chat — Clear all chat history
+  1252→// Called by the "New Chat" button to permanently delete all messages
+  1253→// from the database so they don't reappear on refresh.
+  1254→export async function DELETE() {
+  1255→  try {
+  1256→    const result = await db.chatMessage.deleteMany({})
+  1257→    console.log(`[Chat DELETE] Cleared ${result.count} messages`)
+  1258→    return NextResponse.json({
+  1259→      success: true,
+  1260→      deletedCount: result.count,
+  1261→      message: `Cleared ${result.count} chat messages.`,
+  1262→    })
+  1263→  } catch (error) {
+  1264→    console.error('Chat DELETE error:', error)
+  1265→    return NextResponse.json(
+  1266→      { error: 'Failed to clear chat history' },
+  1267→      { status: 500 }
+  1268→    )
+  1269→  }
+  1270→}
+  1271→

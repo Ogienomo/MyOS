@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getUserId } from '@/lib/userid'
 
 interface Nudge {
   message: string
@@ -9,12 +10,14 @@ interface Nudge {
   actionTab: string
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const userId = getUserId(request)
     const nudges: Nudge[] = []
 
     // Get recent scores (last 14 days)
     const recentScores = await db.lifeAreaScore.findMany({
+      where: { userId },
       orderBy: { date: 'desc' },
       take: 14,
     })
@@ -53,7 +56,7 @@ export async function GET() {
         const score = latestScore[area] as number
         if (score < lowestScore) {
           lowestScore = score
-          lowestArea = area
+          lowestArea = area as string
         }
       }
 
@@ -77,12 +80,14 @@ export async function GET() {
 
     const thisWeekSpent = await db.financeEntry.findMany({
       where: {
+        userId,
         type: 'spent',
         date: { gte: thisWeekStart.toISOString().split('T')[0] },
       },
     })
     const lastWeekSpent = await db.financeEntry.findMany({
       where: {
+        userId,
         type: 'spent',
         date: {
           gte: lastWeekStart.toISOString().split('T')[0],
@@ -108,7 +113,7 @@ export async function GET() {
     // 4. Haven't checked in today
     const today = now.toISOString().split('T')[0]
     const todayCheckIns = await db.checkIn.findMany({
-      where: { date: today },
+      where: { userId, date: today },
     })
 
     if (todayCheckIns.length === 0 && now.getHours() >= 10) {
@@ -123,7 +128,7 @@ export async function GET() {
 
     // 5. Haven't logged mood today
     const todayQuickLog = await db.quickLog.findFirst({
-      where: { date: today },
+      where: { userId, date: today },
     })
 
     if (!todayQuickLog && now.getHours() >= 14) {
@@ -141,6 +146,7 @@ export async function GET() {
     threeDaysAgo.setDate(now.getDate() - 3)
     const activeHealthHabits = await db.habit.findMany({
       where: {
+        userId,
         area: 'health',
         active: true,
       },

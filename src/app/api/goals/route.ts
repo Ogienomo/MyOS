@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getUserId } from '@/lib/userid'
 
 // GET /api/goals?area=career
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const area = searchParams.get('area')
+    const userId = getUserId(request)
 
-    const where: Record<string, string> = {}
+    const where: Record<string, string> = { userId }
     if (area) where.area = area
 
     const goals = await db.goal.findMany({
@@ -36,9 +38,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Area and title are required' }, { status: 400 })
     }
 
+    const userId = getUserId(request)
+
     // Dedup check: don't create a goal with the same title in the same area
     const existing = await db.goal.findFirst({
-      where: { area, title: { equals: title, mode: 'insensitive' } },
+      where: { userId, area, title: { equals: title, mode: 'insensitive' } },
     })
     if (existing) {
       return NextResponse.json(
@@ -49,13 +53,14 @@ export async function POST(request: NextRequest) {
 
     // Get max order for the area
     const maxOrder = await db.goal.findFirst({
-      where: { area },
+      where: { userId, area },
       orderBy: { order: 'desc' },
       select: { order: true },
     })
 
     const goal = await db.goal.create({
       data: {
+        userId,
         area,
         title,
         description: description || null,
@@ -84,6 +89,8 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Goal ID is required' }, { status: 400 })
     }
 
+    const userId = getUserId(request)
+
     const data: Record<string, unknown> = {}
     if (title !== undefined) data.title = title
     if (description !== undefined) data.description = description
@@ -95,10 +102,11 @@ export async function PUT(request: NextRequest) {
 
     // Dedup check if title is being changed
     if (title) {
-      const current = await db.goal.findUnique({ where: { id } })
+      const current = await db.goal.findFirst({ where: { id, userId } })
       if (current && current.title !== title) {
         const duplicate = await db.goal.findFirst({
           where: {
+            userId,
             area: area || current.area,
             title: { equals: title, mode: 'insensitive' },
             id: { not: id },
@@ -137,6 +145,8 @@ export async function PATCH(request: NextRequest) {
         { status: 400 }
       )
     }
+
+    const userId = getUserId(request)
 
     if (type === 'goal') {
       const validStatuses = ['Not Started', 'In Progress', 'Completed', 'Paused']
@@ -191,6 +201,8 @@ export async function DELETE(request: NextRequest) {
     if (!type || !id) {
       return NextResponse.json({ error: 'type and id are required' }, { status: 400 })
     }
+
+    const userId = getUserId(request)
 
     if (type === 'goal') {
       await db.goal.delete({ where: { id } })

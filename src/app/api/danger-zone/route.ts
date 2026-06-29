@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getUserId } from '@/lib/userid'
 
 // POST /api/danger-zone — Delete ALL user data (Danger Zone)
 export async function POST(request: NextRequest) {
   try {
+    const userId = getUserId(request)
     const body = await request.json()
     const { confirmation } = body
 
@@ -13,28 +15,28 @@ export async function POST(request: NextRequest) {
 
     // Delete all data from all tables (except Auth, to keep access code)
     const tableDeletions = [
-      db.checkIn.deleteMany(),
-      db.lifeAreaScore.deleteMany(),
-      db.financeEntry.deleteMany(),
-      db.goal.deleteMany(),
-      db.chatMessage.deleteMany(),
-      db.memory.deleteMany(),
-      db.driftAlert.deleteMany(),
-      db.journalEntry.deleteMany(),
-      db.lifeAreaProgress.deleteMany(),
-      db.streak.deleteMany(),
-      db.quickLog.deleteMany(),
-      db.savingsGoal.deleteMany(),
-      db.notificationLog.deleteMany(),
-      db.monthlySummary.deleteMany(),
-      db.habit.deleteMany(),
-      db.customReminder.deleteMany(),
-      db.customMoodTag.deleteMany(),
-      db.weeklyReviewNote.deleteMany(),
-      db.dashboardWidget.deleteMany(),
+      db.checkIn.deleteMany({ where: { userId } }),
+      db.lifeAreaScore.deleteMany({ where: { userId } }),
+      db.financeEntry.deleteMany({ where: { userId } }),
+      db.goal.deleteMany({ where: { userId } }),
+      db.chatMessage.deleteMany({ where: { userId } }),
+      db.memory.deleteMany({ where: { userId } }),
+      db.driftAlert.deleteMany({ where: { userId } }),
+      db.journalEntry.deleteMany({ where: { userId } }),
+      db.lifeAreaProgress.deleteMany({ where: { userId } }),
+      db.streak.deleteMany({ where: { userId } }),
+      db.quickLog.deleteMany({ where: { userId } }),
+      db.savingsGoal.deleteMany({ where: { userId } }),
+      db.notificationLog.deleteMany({ where: { userId } }),
+      db.monthlySummary.deleteMany({ where: { userId } }),
+      db.habit.deleteMany({ where: { userId } }),
+      db.customReminder.deleteMany({ where: { userId } }),
+      db.customMoodTag.deleteMany({ where: { userId } }),
+      db.weeklyReviewNote.deleteMany({ where: { userId } }),
+      db.dashboardWidget.deleteMany({ where: { userId } }),
       // Delete user profile settings
       db.settings.deleteMany({
-        where: { key: { in: ['user_name', 'os_name', 'setup_complete'] } }
+        where: { userId, key: { in: ['user_name', 'os_name', 'setup_complete'] } }
       }),
     ]
 

@@ -3,8 +3,9 @@ import { google } from 'googleapis'
 import { db } from '@/lib/db'
 
 async function getAuthenticatedClient() {
-  const clientIdSetting = await db.settings.findUnique({ where: { key: 'google_client_id' } })
-  const tokensSetting = await db.settings.findUnique({ where: { key: 'google_tokens' } })
+  const userId = 'default' // Google settings are shared
+  const clientIdSetting = await db.settings.findUnique({ where: { userId_key: { userId, key: 'google_client_id' } } })
+  const tokensSetting = await db.settings.findUnique({ where: { userId_key: { userId, key: 'google_tokens' } } })
 
   if ((!clientIdSetting && !process.env.GOOGLE_CLIENT_ID) || !tokensSetting) {
     return null
@@ -29,9 +30,9 @@ async function getAuthenticatedClient() {
     }
     tokens.access_token = newTokens.access_token
     await db.settings.upsert({
-      where: { key: 'google_tokens' },
+      where: { userId_key: { userId, key: 'google_tokens' } },
       update: { value: JSON.stringify(tokens) },
-      create: { key: 'google_tokens', value: JSON.stringify(tokens) },
+      create: { userId, key: 'google_tokens', value: JSON.stringify(tokens) },
     })
   })
 

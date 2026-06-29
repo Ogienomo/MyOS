@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getUserId } from '@/lib/userid'
 import { getZAI } from '@/lib/ai'
 
 const SMART_SYNC_SYSTEM_PROMPT = `You are a data extraction assistant for MyOS, a personal life operating system.
@@ -155,6 +156,7 @@ interface SmartSyncResult {
 
 export async function POST(request: NextRequest) {
   try {
+    const userId = getUserId(request)
     const body: SmartSyncRequest = await request.json()
     const { message } = body
 
@@ -170,6 +172,7 @@ export async function POST(request: NextRequest) {
 
     // Get all current goals with tasks for context
     const allGoals = await db.goal.findMany({
+      where: { userId },
       include: { tasks: true },
     })
 
@@ -182,6 +185,7 @@ export async function POST(request: NextRequest) {
 
     // Get recent mood logs for context
     const recentLogs = await db.quickLog.findMany({
+      where: { userId },
       orderBy: { createdAt: 'desc' },
       take: 3,
     })
@@ -191,7 +195,7 @@ export async function POST(request: NextRequest) {
 
     // Get active habits for context
     const activeHabits = await db.habit.findMany({
-      where: { active: true },
+      where: { userId, active: true },
     })
     const habitsContext = activeHabits.length > 0
       ? activeHabits.map(h => `  - "${h.title}" [${h.area}] (${h.frequency})`).join('\n')
@@ -302,6 +306,7 @@ export async function POST(request: NextRequest) {
       if (entry.amount > 0) {
         const financeEntry = await db.financeEntry.create({
           data: {
+            userId,
             date: today,
             type: entry.type || 'received',
             amount: entry.amount,
@@ -321,6 +326,7 @@ export async function POST(request: NextRequest) {
       const time = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`
       const quickLog = await db.quickLog.create({
         data: {
+          userId,
           date: today,
           time,
           mood: Math.min(10, Math.max(1, Number(moodEntry.mood))),
@@ -341,6 +347,7 @@ export async function POST(request: NextRequest) {
 
       const memory = await db.memory.create({
         data: {
+          userId,
           type,
           area,
           content: pattern.content,
@@ -357,6 +364,7 @@ export async function POST(request: NextRequest) {
 
       const memory = await db.memory.create({
         data: {
+          userId,
           type: 'event',
           area,
           content: `${lifeEvent.event}${lifeEvent.significance === 'high' ? ' [HIGH]' : lifeEvent.significance === 'medium' ? ' [MED]' : ''}`,
@@ -373,6 +381,7 @@ export async function POST(request: NextRequest) {
 
       const memory = await db.memory.create({
         data: {
+          userId,
           type: 'decision',
           area,
           content: `Suggested: ${task.title}${task.priority === 'high' ? ' [URGENT]' : task.priority === 'medium' ? ' [TODO]' : ''}`,

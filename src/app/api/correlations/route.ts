@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getUserId } from '@/lib/userid'
 
 interface Correlation {
   area1: string
@@ -33,15 +34,16 @@ function pearsonCorrelation(x: number[], y: number[]): number {
   return num / den
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const userId = getUserId(request)
     // Get last 90 days of scores
     const ninetyDaysAgo = new Date()
     ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90)
     const cutoff = ninetyDaysAgo.toISOString().split('T')[0]
 
     const scores = await db.lifeAreaScore.findMany({
-      where: { date: { gte: cutoff } },
+      where: { userId, date: { gte: cutoff } },
       orderBy: { date: 'asc' },
     })
 

@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getUserId } from '@/lib/userid'
 
 // GET /api/mood-tags — List all custom mood tags (pinned first)
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const userId = getUserId(request)
     const tags = await db.customMoodTag.findMany({
+      where: { userId },
       orderBy: [{ pinned: 'desc' }, { createdAt: 'asc' }],
     })
     return NextResponse.json({ tags })
@@ -17,6 +20,7 @@ export async function GET() {
 // POST /api/mood-tags — Create a new tag
 export async function POST(request: NextRequest) {
   try {
+    const userId = getUserId(request)
     const { name, emoji, color, pinned } = await request.json() as { name: string; emoji?: string; color?: string; pinned?: boolean }
 
     if (!name || typeof name !== 'string' || !name.trim()) {
@@ -25,6 +29,7 @@ export async function POST(request: NextRequest) {
 
     const tag = await db.customMoodTag.create({
       data: {
+        userId,
         name: name.trim(),
         emoji: emoji || null,
         color: color || null,
@@ -42,13 +47,14 @@ export async function POST(request: NextRequest) {
 // PUT /api/mood-tags — Update a tag
 export async function PUT(request: NextRequest) {
   try {
+    const userId = getUserId(request)
     const { id, name, emoji, color, pinned } = await request.json() as { id: string; name?: string; emoji?: string; color?: string; pinned?: boolean }
 
     if (!id) {
       return NextResponse.json({ error: 'id is required' }, { status: 400 })
     }
 
-    const existing = await db.customMoodTag.findUnique({ where: { id } })
+    const existing = await db.customMoodTag.findFirst({ where: { id, userId } })
     if (!existing) {
       return NextResponse.json({ error: 'Tag not found' }, { status: 404 })
     }
@@ -81,7 +87,8 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'id query parameter is required' }, { status: 400 })
     }
 
-    const existing = await db.customMoodTag.findUnique({ where: { id } })
+    const userId = getUserId(request)
+    const existing = await db.customMoodTag.findFirst({ where: { id, userId } })
     if (!existing) {
       return NextResponse.json({ error: 'Tag not found' }, { status: 404 })
     }

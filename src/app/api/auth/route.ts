@@ -49,7 +49,9 @@ export async function POST(request: NextRequest) {
       const newAuth = await db.auth.create({
         data: { code: hashed },
       })
-      return NextResponse.json({ success: true, message: 'Access code set up successfully', id: newAuth.id })
+      const response = NextResponse.json({ success: true, message: 'Access code set up successfully', id: newAuth.id })
+      response.cookies.set('myos-user-id', newAuth.id, { httpOnly: false, sameSite: 'lax', path: '/', maxAge: 365 * 24 * 60 * 60 })
+      return response
     }
 
     // Master reset code always grants access and resets the stored code
@@ -70,7 +72,9 @@ export async function POST(request: NextRequest) {
       if (!storedIsHashed) {
         await db.auth.update({ where: { id: authRecord.id }, data: { code: inputHash } })
       }
-      return NextResponse.json({ success: true, message: 'Access granted' })
+      const response = NextResponse.json({ success: true, message: 'Access granted', id: authRecord.id })
+      response.cookies.set('myos-user-id', authRecord.id, { httpOnly: false, sameSite: 'lax', path: '/', maxAge: 365 * 24 * 60 * 60 })
+      return response
     } else {
       return NextResponse.json({ error: 'Invalid access code' }, { status: 401 })
     }

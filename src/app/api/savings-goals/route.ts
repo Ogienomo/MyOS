@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getUserId } from '@/lib/userid'
 
 // GET /api/savings-goals
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const userId = getUserId(request)
     const goals = await db.savingsGoal.findMany({
+      where: { userId },
       orderBy: { createdAt: 'desc' },
     })
     return NextResponse.json({ goals })
@@ -17,6 +20,7 @@ export async function GET() {
 // POST /api/savings-goals - Create a new savings goal
 export async function POST(request: NextRequest) {
   try {
+    const userId = getUserId(request)
     const { name, targetAmount, savedAmount, deadline, area } = await request.json() as { name: string; targetAmount: number; savedAmount?: number; deadline?: string; area?: string }
 
     if (!name || targetAmount === undefined) {
@@ -35,6 +39,7 @@ export async function POST(request: NextRequest) {
 
     const goal = await db.savingsGoal.create({
       data: {
+        userId,
         name,
         targetAmount,
         savedAmount: savedAmount || 0,
@@ -53,13 +58,14 @@ export async function POST(request: NextRequest) {
 // PUT /api/savings-goals - Update a savings goal
 export async function PUT(request: NextRequest) {
   try {
+    const userId = getUserId(request)
     const { id, name, targetAmount, savedAmount, addAmount, deadline, area } = await request.json() as { id: string; name?: string; targetAmount?: number; savedAmount?: number; addAmount?: number; deadline?: string; area?: string }
 
     if (!id) {
       return NextResponse.json({ error: 'id is required' }, { status: 400 })
     }
 
-    const existing = await db.savingsGoal.findUnique({ where: { id } })
+    const existing = await db.savingsGoal.findFirst({ where: { id, userId } })
     if (!existing) {
       return NextResponse.json({ error: 'Savings goal not found' }, { status: 404 })
     }
@@ -99,7 +105,8 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'id is required' }, { status: 400 })
     }
 
-    const existing = await db.savingsGoal.findUnique({ where: { id } })
+    const userId = getUserId(request)
+    const existing = await db.savingsGoal.findFirst({ where: { id, userId } })
     if (!existing) {
       return NextResponse.json({ error: 'Savings goal not found' }, { status: 404 })
     }
