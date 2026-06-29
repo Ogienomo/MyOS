@@ -1,0 +1,502 @@
+   600→    setRemindersLoading(true)
+   601→    try {
+   602→      const res = await fetch('/api/notifications/reminders')
+   603→      if (res.ok) {
+   604→        const data = await res.json()
+   605→        setReminders(data)
+   606→      }
+   607→    } catch {
+   608→      // Silently fail
+   609→    } finally {
+   610→      setRemindersLoading(false)
+   611→    }
+   612→  }, [])
+   613→
+   614→  const fetchStorageData = useCallback(async () => {
+   615→    setStorageLoading(true)
+   616→    try {
+   617→      const res = await fetch('/api/storage')
+   618→      if (res.ok) {
+   619→        const data = await res.json()
+   620→        setStorageData(data)
+   621→      }
+   622→    } catch {
+   623→      // Silently fail
+   624→    } finally {
+   625→      setStorageLoading(false)
+   626→    }
+   627→  }, [])
+   628→
+   629→  const handleCreateReminder = async () => {
+   630→    if (!newReminder.title || newReminder.days.length === 0) return
+   631→    try {
+   632→      const res = await fetch('/api/notifications/reminders', {
+   633→        method: 'POST',
+   634→        headers: { 'Content-Type': 'application/json' },
+   635→        body: JSON.stringify({
+   636→          title: newReminder.title,
+   637→          message: newReminder.message,
+   638→          time: newReminder.time,
+   639→          days: newReminder.days,
+   640→        }),
+   641→      })
+   642→      if (res.ok) {
+   643→        setShowAddReminder(false)
+   644→        setNewReminder({ title: '', message: '', time: '09:00', days: [1, 2, 3, 4, 5] })
+   645→        fetchReminders()
+   646→      }
+   647→    } catch {
+   648→      // Silently fail
+   649→    }
+   650→  }
+   651→
+   652→  const handleToggleReminder = async (id: string, active: boolean) => {
+   653→    try {
+   654→      const res = await fetch('/api/notifications/reminders', {
+   655→        method: 'PUT',
+   656→        headers: { 'Content-Type': 'application/json' },
+   657→        body: JSON.stringify({ id, active }),
+   658→      })
+   659→      if (res.ok) {
+   660→        setReminders(prev => prev.map(r => r.id === id ? { ...r, active } : r))
+   661→      }
+   662→    } catch {
+   663→      // Silently fail
+   664→    }
+   665→  }
+   666→
+   667→  const handleDeleteReminder = async (id: string) => {
+   668→    try {
+   669→      const res = await fetch(`/api/notifications/reminders?id=${id}`, { method: 'DELETE' })
+   670→      if (res.ok) {
+   671→        setReminders(prev => prev.filter(r => r.id !== id))
+   672→      }
+   673→    } catch {
+   674→      // Silently fail
+   675→    }
+   676→  }
+   677→
+   678→  const exportOptions = [
+   679→    { type: 'finances', label: 'Finances', desc: 'Income, expenses & categories', icon: <Wallet className="h-4 w-4 text-red-600" /> },
+   680→    { type: 'journal', label: 'Journal', desc: 'Entries, moods & reflections', icon: <BookOpen className="h-4 w-4 text-rose-600" /> },
+   681→    { type: 'goals', label: 'Goals', desc: 'Goals, tasks & progress', icon: <Target className="h-4 w-4 text-red-600" /> },
+   682→    { type: 'memories', label: 'Memories', desc: 'Wins, patterns & insights', icon: <Brain className="h-4 w-4 text-red-700" /> },
+   683→    { type: 'scores', label: 'Scores', desc: 'Life area scores over time', icon: <BarChart3 className="h-4 w-4 text-red-600" /> },
+   684→    { type: 'checkins', label: 'Check-ins', desc: 'Morning & evening check-ins', icon: <ClipboardCheck className="h-4 w-4 text-red-600" /> },
+   685→    { type: 'all', label: 'All Data', desc: 'Complete export of everything', icon: <Database className="h-4 w-4 text-neutral-600" /> },
+   686→  ]
+   687→
+   688→  const handleExport = async (type: string, format: 'csv' | 'json') => {
+   689→    try {
+   690→      setExportLoading(`${type}-${format}`)
+   691→      const res = await fetch(`/api/export?type=${type}&format=${format}`)
+   692→      const blob = await res.blob()
+   693→      const url = URL.createObjectURL(blob)
+   694→      const a = document.createElement('a')
+   695→      a.href = url
+   696→      a.download = `myos-${type}-${new Date().toISOString().split('T')[0]}.${format}`
+   697→      document.body.appendChild(a)
+   698→      a.click()
+   699→      document.body.removeChild(a)
+   700→      URL.revokeObjectURL(url)
+   701→    } catch (err) {
+   702→      console.error('Export failed:', err)
+   703→    } finally {
+   704→      setExportLoading(null)
+   705→    }
+   706→  }
+   707→
+   708→  return (
+   709→    <Dialog open={open} onOpenChange={handleClose}>
+   710→      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto w-[95vw] sm:w-auto rounded-t-2xl sm:rounded-2xl">
+   711→        <DialogHeader>
+   712→          <DialogTitle className="flex items-center gap-2">
+   713→            <Shield className="h-5 w-5 text-red-600" />
+   714→            Settings
+   715→          </DialogTitle>
+   716→          <DialogDescription>
+   717→            Configure your MyOS experience
+   718→          </DialogDescription>
+   719→        </DialogHeader>
+   720→
+   721→        {settingsLoading && (
+   722→          <div className="flex items-center gap-2 text-xs text-neutral-500 py-1">
+   723→            <Loader2 className="h-3 w-3 animate-spin text-red-600" />
+   724→            Saving...
+   725→          </div>
+   726→        )}
+   727→
+   728→        {/* Quick schedule status banner */}
+   729→        {localSettings && (
+   730→          <div className="flex items-center gap-3 p-3 rounded-xl bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-100 dark:border-neutral-800">
+   731→            <AlarmClock className="h-4 w-4 text-red-600 shrink-0" />
+   732→            <div className="flex-1 min-w-0">
+   733→              <p className="text-[11px] font-semibold text-neutral-700 dark:text-neutral-300">Check-in Schedule</p>
+   734→              <p className="text-[10px] text-neutral-500 dark:text-neutral-400">
+   735→                Morning {localSettings.checkInWindows.morningEnabled ? `@ ${localSettings.checkInWindows.morningTime}` : '(off)'} &bull; Evening {localSettings.checkInWindows.eveningEnabled ? `@ ${localSettings.checkInWindows.eveningTime}` : '(off)'}{localSettings.checkInWindows.strictMode ? ' · Strict ON' : ''}
+   736→              </p>
+   737→            </div>
+   738→            <button onClick={() => setActiveTab('checkins')} className="text-[10px] text-red-600 hover:text-red-700 font-medium shrink-0">Edit</button>
+   739→          </div>
+   740→        )}
+   741→
+   742→        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+   743→          <TabsList className="w-full overflow-x-auto scrollbar-hide flex sm:grid sm:grid-cols-7 h-auto gap-0 p-1 -mx-1 px-1 sm:mx-0 sm:px-0">
+   744→            <TabsTrigger value="checkins" className="text-[10px] sm:text-[11px] px-2 sm:px-2.5 py-2 sm:py-2.5 shrink-0 whitespace-nowrap data-[state=active]:shadow-[inset_0_-2px_0_0_rgba(220,38,38,1)] data-[state=active]:border-b-2 data-[state=active]:border-red-600">Check-ins</TabsTrigger>
+   745→            <TabsTrigger value="profile" className="text-[10px] sm:text-[11px] px-2 sm:px-2.5 py-2 sm:py-2.5 shrink-0 whitespace-nowrap data-[state=active]:shadow-[inset_0_-2px_0_0_rgba(220,38,38,1)] data-[state=active]:border-b-2 data-[state=active]:border-red-600">Profile</TabsTrigger>
+   746→            <TabsTrigger value="appearance" className="text-[10px] sm:text-[11px] px-2 sm:px-2.5 py-2 sm:py-2.5 shrink-0 whitespace-nowrap data-[state=active]:shadow-[inset_0_-2px_0_0_rgba(220,38,38,1)] data-[state=active]:border-b-2 data-[state=active]:border-red-600">Appearance</TabsTrigger>
+   747→            <TabsTrigger value="features" className="text-[10px] sm:text-[11px] px-2 sm:px-2.5 py-2 sm:py-2.5 shrink-0 whitespace-nowrap data-[state=active]:shadow-[inset_0_-2px_0_0_rgba(220,38,38,1)] data-[state=active]:border-b-2 data-[state=active]:border-red-600">Features</TabsTrigger>
+   748→            <TabsTrigger value="integrations" className="text-[10px] sm:text-[11px] px-2 sm:px-2.5 py-2 sm:py-2.5 shrink-0 whitespace-nowrap data-[state=active]:shadow-[inset_0_-2px_0_0_rgba(220,38,38,1)] data-[state=active]:border-b-2 data-[state=active]:border-red-600">Integrations</TabsTrigger>
+   749→            <TabsTrigger value="data" className="text-[10px] sm:text-[11px] px-2 sm:px-2.5 py-2 sm:py-2.5 shrink-0 whitespace-nowrap data-[state=active]:shadow-[inset_0_-2px_0_0_rgba(220,38,38,1)] data-[state=active]:border-b-2 data-[state=active]:border-red-600">Data</TabsTrigger>
+   750→            <TabsTrigger value="security" className="text-[10px] sm:text-[11px] px-2 sm:px-2.5 py-2 sm:py-2.5 shrink-0 whitespace-nowrap data-[state=active]:shadow-[inset_0_-2px_0_0_rgba(220,38,38,1)] data-[state=active]:border-b-2 data-[state=active]:border-red-600">Security</TabsTrigger>
+   751→          </TabsList>
+   752→
+   753→          <AnimatePresence mode="wait">
+   754→            {/* Profile Tab */}
+   755→            {activeTab === 'profile' && (
+   756→              <TabsContent value="profile" className="mt-4" forceMount>
+   757→                <motion.div
+   758→                  key="profile-content"
+   759→                  initial={{ opacity: 0, y: 10 }}
+   760→                  animate={{ opacity: 1, y: 0 }}
+   761→                  transition={{ duration: 0.25 }}
+   762→                  className="space-y-6"
+   763→                >
+   764→                  <ProfileSettings />
+   765→                </motion.div>
+   766→              </TabsContent>
+   767→            )}
+   768→
+   769→            {/* Check-in Windows Tab */}
+   770→            {activeTab === 'checkins' && (
+   771→              <TabsContent value="checkins" className="mt-4 space-y-4" forceMount>
+   772→                <motion.div
+   773→                  key="checkins-content"
+   774→                  variants={tabContentVariants}
+   775→                  initial="hidden"
+   776→                  animate="visible"
+   777→                  exit="exit"
+   778→                  className="space-y-4"
+   779→                >
+   780→                  {/* Morning Check-in */}
+   781→                  <div className="space-y-3 p-4 rounded-lg border border-neutral-200 dark:border-neutral-700">
+   782→                    <div className="flex items-center justify-between">
+   783→                      <div className="flex items-center gap-2">
+   784→                        <Clock className="h-4 w-4 text-red-500" />
+   785→                        <span className="text-sm font-medium text-neutral-800 dark:text-neutral-200">Morning Check-in</span>
+   786→                      </div>
+   787→                      <Switch
+   788→                        checked={localSettings.checkInWindows.morningEnabled}
+   789→                        onCheckedChange={(v) => updateCheckInWindow('morningEnabled', v)}
+   790→                      />
+   791→                    </div>
+   792→                    {localSettings.checkInWindows.morningEnabled && (
+   793→                      <div className="space-y-2">
+   794→                        <div className="flex items-center gap-2">
+   795→                          <Label htmlFor="morning-time" className="text-xs text-neutral-500 w-20">Time</Label>
+   796→                          <Input
+   797→                            id="morning-time"
+   798→                            type="time"
+   799→                            value={localSettings.checkInWindows.morningTime}
+   800→                            onChange={(e) => updateCheckInWindow('morningTime', e.target.value)}
+   801→                            className="text-sm h-8"
+   802→                          />
+   803→                        </div>
+   804→                      </div>
+   805→                    )}
+   806→                  </div>
+   807→
+   808→                  {/* Evening Check-in */}
+   809→                  <div className="space-y-3 p-4 rounded-lg border border-neutral-200 dark:border-neutral-700">
+   810→                    <div className="flex items-center justify-between">
+   811→                      <div className="flex items-center gap-2">
+   812→                        <Clock className="h-4 w-4 text-red-500" />
+   813→                        <span className="text-sm font-medium text-neutral-800 dark:text-neutral-200">Evening Check-in</span>
+   814→                      </div>
+   815→                      <Switch
+   816→                        checked={localSettings.checkInWindows.eveningEnabled}
+   817→                        onCheckedChange={(v) => updateCheckInWindow('eveningEnabled', v)}
+   818→                      />
+   819→                    </div>
+   820→                    {localSettings.checkInWindows.eveningEnabled && (
+   821→                      <div className="space-y-2">
+   822→                        <div className="flex items-center gap-2">
+   823→                          <Label htmlFor="evening-time" className="text-xs text-neutral-500 w-20">Time</Label>
+   824→                          <Input
+   825→                            id="evening-time"
+   826→                            type="time"
+   827→                            value={localSettings.checkInWindows.eveningTime}
+   828→                            onChange={(e) => updateCheckInWindow('eveningTime', e.target.value)}
+   829→                            className="text-sm h-8"
+   830→                          />
+   831→                        </div>
+   832→                      </div>
+   833→                    )}
+   834→                  </div>
+   835→
+   836→                  {/* Strict Mode */}
+   837→                  <div className="flex items-center justify-between p-4 rounded-lg border border-neutral-200 dark:border-neutral-700">
+   838→                    <div>
+   839→                      <div className="flex items-center gap-2">
+   840→                        <Lock className="h-4 w-4 text-red-500" />
+   841→                        <span className="text-sm font-medium text-neutral-800 dark:text-neutral-200">Strict Mode</span>
+   842→                      </div>
+   843→                      <p className="text-xs leading-relaxed text-neutral-400 dark:text-neutral-500 mt-1">Only allow check-ins within the scheduled window</p>
+   844→                    </div>
+   845→                    <Switch
+   846→                      checked={localSettings.checkInWindows.strictMode}
+   847→                      onCheckedChange={(v) => updateCheckInWindow('strictMode', v)}
+   848→                    />
+   849→                  </div>
+   850→
+   851→                  {/* Window Minutes */}
+   852→                  <div className="p-4 rounded-lg border border-neutral-200 dark:border-neutral-700">
+   853→                    <Label className="text-xs text-neutral-500 dark:text-neutral-400">Check-in window (minutes before/after)</Label>
+   854→                    <Input
+   855→                      type="number"
+   856→                      min={5}
+   857→                      max={180}
+   858→                      value={localSettings.checkInWindows.windowMinutes}
+   859→                      onChange={(e) => updateCheckInWindow('windowMinutes', parseInt(e.target.value) || 60)}
+   860→                      className="text-sm h-8 mt-1"
+   861→                    />
+   862→                  </div>
+   863→
+   864→                  {/* Browser Notifications */}
+   865→                  <div className="space-y-3 p-4 rounded-lg border border-neutral-200 dark:border-neutral-700">
+   866→                    <div className="flex items-center justify-between">
+   867→                      <div className="flex items-center gap-2">
+   868→                        <Bell className="h-4 w-4 text-red-500" />
+   869→                        <span className="text-sm font-medium text-neutral-800 dark:text-neutral-200">Browser Notifications</span>
+   870→                      </div>
+   871→                      <Button
+   872→                        size="sm"
+   873→                        variant="outline"
+   874→                        className="text-xs h-7 sm:h-8 sm:text-sm"
+   875→                        onClick={handleRequestNotifications}
+   876→                        disabled={notificationPermission === 'denied'}
+   877→                      >
+   878→                        {notificationPermission === 'granted' ? '✓ Enabled' : notificationPermission === 'denied' ? 'Blocked' : 'Enable'}
+   879→                      </Button>
+   880→                    </div>
+   881→                    {notificationPermission === 'granted' && (
+   882→                      <div className="space-y-2 pl-6">
+   883→                        <div className="flex items-center justify-between">
+   884→                          <span className="text-xs text-neutral-600 dark:text-neutral-400">Morning reminder</span>
+   885→                          <Switch
+   886→                            checked={localSettings.morningReminderEnabled ?? true}
+   887→                            onCheckedChange={(v) => updateSetting('morningReminderEnabled', v)}
+   888→                          />
+   889→                        </div>
+   890→                        <div className="flex items-center justify-between">
+   891→                          <span className="text-xs text-neutral-600 dark:text-neutral-400">Evening reminder</span>
+   892→                          <Switch
+   893→                            checked={localSettings.eveningReminderEnabled ?? true}
+   894→                            onCheckedChange={(v) => updateSetting('eveningReminderEnabled', v)}
+   895→                          />
+   896→                        </div>
+   897→                        <div className="flex items-center justify-between">
+   898→                          <span className="text-xs text-neutral-600 dark:text-neutral-400">Drift alerts</span>
+   899→                          <Switch
+   900→                            checked={localSettings.driftAlertNotifications ?? true}
+   901→                            onCheckedChange={(v) => updateSetting('driftAlertNotifications', v)}
+   902→                          />
+   903→                        </div>
+   904→                        <div className="flex items-center justify-between">
+   905→                          <span className="text-xs text-neutral-600 dark:text-neutral-400">Streak celebrations</span>
+   906→                          <Switch
+   907→                            checked={localSettings.streakNotifications ?? true}
+   908→                            onCheckedChange={(v) => updateSetting('streakNotifications', v)}
+   909→                          />
+   910→                        </div>
+   911→                      </div>
+   912→                    )}
+   913→                    {notificationPermission === 'denied' && (
+   914→                      <p className="text-xs text-rose-500 pl-6">Notifications blocked. Please enable in browser settings.</p>
+   915→                    )}
+   916→                  </div>
+   917→
+   918→                  {/* Custom Reminders */}
+   919→                  <div className="space-y-3 p-4 rounded-lg border border-neutral-200 dark:border-neutral-700">
+   920→                    <div className="flex items-center justify-between">
+   921→                      <div className="flex items-center gap-2">
+   922→                        <AlarmClock className="h-4 w-4 text-red-500" />
+   923→                        <span className="text-sm font-medium text-neutral-800 dark:text-neutral-200">Custom Reminders</span>
+   924→                      </div>
+   925→                      <Button
+   926→                        size="sm"
+   927→                        variant="outline"
+   928→                        className="text-xs h-7 sm:h-8 sm:text-sm"
+   929→                        onClick={() => setShowAddReminder(true)}
+   930→                        disabled={showAddReminder}
+   931→                      >
+   932→                        <Plus className="h-3 w-3 mr-1" />
+   933→                        Add
+   934→                      </Button>
+   935→                    </div>
+   936→
+   937→                    {/* Add Reminder Form */}
+   938→                    {showAddReminder && (
+   939→                      <div className="space-y-2.5 p-3 rounded-md bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-700">
+   940→                        <div className="flex items-center gap-2">
+   941→                          <Label className="text-xs text-neutral-500 w-14 shrink-0">Title</Label>
+   942→                          <Input
+   943→                            value={newReminder.title}
+   944→                            onChange={(e) => setNewReminder(prev => ({ ...prev, title: e.target.value }))}
+   945→                            placeholder="e.g., Review weekly goals"
+   946→                            className="text-sm h-8"
+   947→                          />
+   948→                        </div>
+   949→                        <div className="flex items-center gap-2">
+   950→                          <Label className="text-xs text-neutral-500 w-14 shrink-0">Message</Label>
+   951→                          <Input
+   952→                            value={newReminder.message}
+   953→                            onChange={(e) => setNewReminder(prev => ({ ...prev, message: e.target.value }))}
+   954→                            placeholder="e.g., Take 10 minutes to review your goals"
+   955→                            className="text-sm h-8"
+   956→                          />
+   957→                        </div>
+   958→                        <div className="flex items-center gap-2">
+   959→                          <Label className="text-xs text-neutral-500 w-14 shrink-0">Time</Label>
+   960→                          <Input
+   961→                            type="time"
+   962→                            value={newReminder.time}
+   963→                            onChange={(e) => setNewReminder(prev => ({ ...prev, time: e.target.value }))}
+   964→                            className="text-sm h-8"
+   965→                          />
+   966→                        </div>
+   967→                        <div className="flex items-start gap-2">
+   968→                          <Label className="text-xs text-neutral-500 w-14 shrink-0 mt-1">Days</Label>
+   969→                          <div className="flex flex-wrap gap-2">
+   970→                            {DAY_LABELS.map(day => (
+   971→                              <label key={day.value} className="flex items-center gap-1 cursor-pointer">
+   972→                                <Checkbox
+   973→                                  checked={newReminder.days.includes(day.value)}
+   974→                                  onCheckedChange={(checked) => {
+   975→                                    setNewReminder(prev => ({
+   976→                                      ...prev,
+   977→                                      days: checked
+   978→                                        ? [...prev.days, day.value]
+   979→                                        : prev.days.filter(d => d !== day.value),
+   980→                                    }))
+   981→                                  }}
+   982→                                />
+   983→                                <span className="text-xs text-neutral-600 dark:text-neutral-400">{day.label}</span>
+   984→                              </label>
+   985→                            ))}
+   986→                          </div>
+   987→                        </div>
+   988→                        <div className="flex justify-end gap-2 pt-1">
+   989→                          <Button
+   990→                            size="sm"
+   991→                            variant="ghost"
+   992→                            className="text-xs h-7 sm:h-8 sm:text-sm"
+   993→                            onClick={() => {
+   994→                              setShowAddReminder(false)
+   995→                              setNewReminder({ title: '', message: '', time: '09:00', days: [1, 2, 3, 4, 5] })
+   996→                            }}
+   997→                          >
+   998→                            Cancel
+   999→                          </Button>
+  1000→                          <Button
+  1001→                            size="sm"
+  1002→                            className="text-xs h-7 sm:h-8 sm:text-sm bg-red-600 hover:bg-red-700"
+  1003→                            onClick={handleCreateReminder}
+  1004→                            disabled={!newReminder.title || newReminder.days.length === 0}
+  1005→                          >
+  1006→                            Save
+  1007→                          </Button>
+  1008→                        </div>
+  1009→                      </div>
+  1010→                    )}
+  1011→
+  1012→                    {/* Reminders List */}
+  1013→                    {remindersLoading ? (
+  1014→                      <div className="flex items-center justify-center py-3">
+  1015→                        <Loader2 className="h-4 w-4 animate-spin text-neutral-400" />
+  1016→                      </div>
+  1017→                    ) : reminders.length === 0 && !showAddReminder ? (
+  1018→                      <p className="text-xs text-neutral-400 pl-6">No custom reminders yet. Add one to get started.</p>
+  1019→                    ) : (
+  1020→                      <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
+  1021→                        {reminders.map(reminder => {
+  1022→                          const reminderDays = (() => {
+  1023→                            try { return JSON.parse(reminder.days) as number[] } catch { return [] }
+  1024→                          })()
+  1025→                          return (
+  1026→                            <div
+  1027→                              key={reminder.id}
+  1028→                              className={`flex items-center gap-2 p-2.5 rounded-md border border-neutral-200 dark:border-neutral-700 ${!reminder.active ? 'opacity-50' : ''}`}
+  1029→                            >
+  1030→                              <Switch
+  1031→                                checked={reminder.active}
+  1032→                                onCheckedChange={(checked) => handleToggleReminder(reminder.id, checked)}
+  1033→                                className="scale-75"
+  1034→                              />
+  1035→                              <div className="flex-1 min-w-0">
+  1036→                                <div className="text-sm font-medium text-neutral-800 dark:text-neutral-200 truncate">{reminder.title}</div>
+  1037→                                <div className="flex items-center gap-2 mt-0.5">
+  1038→                                  <span className="text-[10px] text-neutral-500 whitespace-nowrap">{reminder.time}</span>
+  1039→                                  <span className="text-[10px] text-neutral-400">
+  1040→                                    {reminderDays.map(d => DAY_LABELS.find(l => l.value === d)?.label).filter(Boolean).join(', ')}
+  1041→                                  </span>
+  1042→                                </div>
+  1043→                                {reminder.message && (
+  1044→                                  <p className="text-[10px] text-neutral-400 truncate mt-0.5">{reminder.message}</p>
+  1045→                                )}
+  1046→                              </div>
+  1047→                              <Button
+  1048→                                size="sm"
+  1049→                                variant="ghost"
+  1050→                                className="h-7 w-7 p-0 text-neutral-400 hover:text-rose-500 sm:h-8 sm:w-8"
+  1051→                                onClick={() => handleDeleteReminder(reminder.id)}
+  1052→                              >
+  1053→                                <Trash2 className="h-3.5 w-3.5" />
+  1054→                              </Button>
+  1055→                            </div>
+  1056→                          )
+  1057→                        })}
+  1058→                      </div>
+  1059→                    )}
+  1060→                  </div>
+  1061→                </motion.div>
+  1062→              </TabsContent>
+  1063→            )}
+  1064→
+  1065→            {/* Appearance Tab */}
+  1066→            {activeTab === 'appearance' && (
+  1067→              <TabsContent value="appearance" className="mt-4 space-y-4" forceMount>
+  1068→                <motion.div
+  1069→                  key="appearance-content"
+  1070→                  variants={tabContentVariants}
+  1071→                  initial="hidden"
+  1072→                  animate="visible"
+  1073→                  exit="exit"
+  1074→                  className="space-y-4"
+  1075→                >
+  1076→                  <div className="space-y-3 p-4 rounded-lg border border-neutral-200 dark:border-neutral-700">
+  1077→                    <div className="flex items-center gap-2 mb-2">
+  1078→                      <Sun className="h-4 w-4 text-red-500" />
+  1079→                      <span className="text-sm font-medium text-neutral-800 dark:text-neutral-200">Theme</span>
+  1080→                    </div>
+  1081→                    <p className="text-xs leading-relaxed text-neutral-500 dark:text-neutral-400 mb-3">Choose how MyOS looks. System follows your device settings.</p>
+  1082→                    <div className="grid grid-cols-3 gap-2">
+  1083→                      <button
+  1084→                        onClick={() => {
+  1085→                          setTheme('light')
+  1086→                          updateSetting('darkMode', false)
+  1087→                        }}
+  1088→                        className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all ${
+  1089→                          theme === 'light'
+  1090→                            ? 'border-red-500 bg-red-50 dark:bg-red-950/30'
+  1091→                            : 'border-neutral-200 dark:border-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600'
+  1092→                        }`}
+  1093→                      >
+  1094→                        <Sun className={`h-5 w-5 ${theme === 'light' ? 'text-red-600' : 'text-neutral-400'}`} />
+  1095→                        <span className={`text-xs font-medium ${theme === 'light' ? 'text-red-700 dark:text-red-400' : 'text-neutral-600 dark:text-neutral-400'}`}>Light</span>
+  1096→                      </button>
+  1097→                      <button
+  1098→                        onClick={() => {
+  1099→                          setTheme('dark')
+
+[showing lines 600-1099 of 1601; use offset=1100 with limit to continue reading]

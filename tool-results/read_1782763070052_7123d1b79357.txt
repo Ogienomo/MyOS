@@ -1,0 +1,886 @@
+     1→'use client'
+     2→
+     3→import { useState, useEffect, useCallback, useRef } from 'react'
+     4→import { motion, AnimatePresence } from 'framer-motion'
+     5→import { Sparkles, ArrowRight, CheckCircle2, ShieldCheck, User, Building2 } from 'lucide-react'
+     6→import { Input } from '@/components/ui/input'
+     7→import { Button } from '@/components/ui/button'
+     8→import { useAppStore } from '@/lib/store'
+     9→
+    10→const DEEP_GRADIENT = 'bg-gradient-to-br from-black via-neutral-950 to-red-950/40 ambient-gradient'
+    11→
+    12→type AuthStep = 'boot' | 'checking' | 'setup-name' | 'setup-business' | 'setup-code' | 'login' | 'success'
+    13→
+    14→// Boot sequence lines — PraiseOS-style
+    15→const BOOT_LINES = [
+    16→  { text: 'Initializing system...', ok: true, delay: 0 },
+    17→  { text: 'Loading Life OS kernel...', ok: true, delay: 400 },
+    18→  { text: 'Mounting database...', ok: true, delay: 800 },
+    19→  { text: 'Starting alignment engine...', ok: true, delay: 1200 },
+    20→  { text: 'System ready.', ok: true, delay: 1600 },
+    21→]
+    22→
+    23→export function AuthGate() {
+    24→  const { setIsAuthenticated, setUserName, setOsName, setIsSetupComplete, setBusinessName, setBusinessDescription } = useAppStore()
+    25→  const [step, setStep] = useState<AuthStep>('boot')
+    26→  const [code, setCode] = useState('')
+    27→  const [name, setName] = useState('')
+    28→  const [businessName, setLocalBusinessName] = useState('')
+    29→  const [businessDesc, setLocalBusinessDesc] = useState('')
+    30→  const [osNamePreview, setOsNamePreview] = useState('MyOS')
+    31→  const [error, setError] = useState('')
+    32→  const [loading, setLoading] = useState(false)
+    33→  const [isSetUp, setIsSetUp] = useState<boolean | null>(null)
+    34→  const [bootLineIndex, setBootLineIndex] = useState(-1)
+    35→  const [storedOsName, setStoredOsName] = useState('MyOS')
+    36→  const checkRan = useRef(false)
+    37→
+    38→  // ─── Boot animation ───
+    39→  useEffect(() => {
+    40→    if (step !== 'boot') return
+    41→
+    42→    let timeout: ReturnType<typeof setTimeout>
+    43→    let currentIndex = -1
+    44→
+    45→    const showNext = () => {
+    46→      currentIndex++
+    47→      if (currentIndex < BOOT_LINES.length) {
+    48→        setBootLineIndex(currentIndex)
+    49→        timeout = setTimeout(showNext, 450)
+    50→      } else {
+    51→        // Boot done — transition to checking
+    52→        timeout = setTimeout(() => setStep('checking'), 300)
+    53→      }
+    54→    }
+    55→
+    56→    timeout = setTimeout(showNext, 300)
+    57→
+    58→    return () => clearTimeout(timeout)
+    59→  }, [step])
+    60→
+    61→  // ─── Check if already authenticated or if auth is set up ───
+    62→  useEffect(() => {
+    63→    if (step !== 'checking') return
+    64→    if (checkRan.current) return
+    65→    checkRan.current = true
+    66→
+    67→    const sessionAuth = localStorage.getItem('myos-auth')
+    68→    if (sessionAuth === 'true') {
+    69→      // Already authenticated in this session — load profile and enter
+    70→      const loadProfile = async () => {
+    71→        try {
+    72→          const res = await fetch('/api/user-profile')
+    73→          const data = await res.json()
+    74→          if (data.userName) {
+    75→            setUserName(data.userName)
+    76→            setOsName(data.osName || `${data.userName}OS`)
+    77→            setStoredOsName(data.osName || `${data.userName}OS`)
+    78→          }
+    79→          if (data.businessName) {
+    80→            setBusinessName(data.businessName)
+    81→          }
+    82→          if (data.businessDescription) {
+    83→            setBusinessDescription(data.businessDescription)
+    84→          }
+    85→          if (data.isSetupComplete) {
+    86→            setIsSetupComplete(true)
+    87→          }
+    88→        } catch { /* ignore */ }
+    89→        setIsAuthenticated(true)
+    90→      }
+    91→      loadProfile()
+    92→      return
+    93→    }
+    94→
+    95→    // Check if auth is set up
+    96→    const checkAuth = async () => {
+    97→      try {
+    98→        const [authRes, profileRes] = await Promise.all([
+    99→          fetch('/api/auth'),
+   100→          fetch('/api/user-profile'),
+   101→        ])
+   102→        const authData = await authRes.json()
+   103→        const profileData = await profileRes.json()
+   104→
+   105→        setIsSetUp(authData.isSetUp)
+   106→
+   107→        // Store the OS name for the login screen
+   108→        if (profileData.osName && profileData.osName !== 'MyOS') {
+   109→          setStoredOsName(profileData.osName)
+   110→        }
+   111→        if (profileData.businessName) {
+   112→          setBusinessName(profileData.businessName)
+   113→        }
+   114→        if (profileData.businessDescription) {
+   115→          setBusinessDescription(profileData.businessDescription)
+   116→        }
+   117→
+   118→        if (!authData.isSetUp || !profileData.isSetupComplete) {
+   119→          // Brand new user — show setup flow (name first, then business, then code)
+   120→          setStep('setup-name')
+   121→        } else {
+   122→          // Returning user — show login with their personalized OS name
+   123→          setStep('login')
+   124→        }
+   125→      } catch {
+   126→        setIsSetUp(false)
+   127→        setStep('setup-name')
+   128→      }
+   129→    }
+   130→    checkAuth()
+   131→  }, [step, setIsAuthenticated, setUserName, setOsName, setIsSetupComplete, setBusinessName, setBusinessDescription])
+   132→
+   133→  // Update OS name preview when name changes
+   134→  useEffect(() => {
+   135→    if (name.trim()) {
+   136→      setOsNamePreview(`${name.trim()}OS`)
+   137→    } else {
+   138→      setOsNamePreview('MyOS')
+   139→    }
+   140→  }, [name])
+   141→
+   142→  // Handle name submission (first run setup — step 1)
+   143→  const handleNameSubmit = useCallback(async (e: React.FormEvent) => {
+   144→    e.preventDefault()
+   145→    if (!name.trim() || name.trim().length < 2) {
+   146→      setError('Please enter your name (at least 2 characters)')
+   147→      return
+   148→    }
+   149→
+   150→    setLoading(true)
+   151→    setError('')
+   152→
+   153→    try {
+   154→      const res = await fetch('/api/user-profile', {
+   155→        method: 'POST',
+   156→        headers: { 'Content-Type': 'application/json' },
+   157→        body: JSON.stringify({ name: name.trim() }),
+   158→      })
+   159→
+   160→      const data = await res.json()
+   161→
+   162→      if (res.ok && data.success) {
+   163→        setUserName(data.userName)
+   164→        setOsName(data.osName)
+   165→        setStoredOsName(data.osName)
+   166→        setIsSetupComplete(true)
+   167→        setStep('setup-business')
+   168→      } else {
+   169→        setError(data.error || 'Failed to save name')
+   170→      }
+   171→    } catch {
+   172→      setError('Connection error. Please try again.')
+   173→    } finally {
+   174→      setLoading(false)
+   175→    }
+   176→  }, [name, setUserName, setOsName, setIsSetupComplete])
+   177→
+   178→  // Handle business profile submission (first run setup — step 2)
+   179→  const handleBusinessSubmit = useCallback(async (e: React.FormEvent) => {
+   180→    e.preventDefault()
+   181→
+   182→    setLoading(true)
+   183→    setError('')
+   184→
+   185→    try {
+   186→      const res = await fetch('/api/user-profile', {
+   187→        method: 'POST',
+   188→        headers: { 'Content-Type': 'application/json' },
+   189→        body: JSON.stringify({
+   190→          businessName: businessName.trim(),
+   191→          businessDescription: businessDesc.trim(),
+   192→        }),
+   193→      })
+   194→
+   195→      const data = await res.json()
+   196→
+   197→      if (res.ok && data.success) {
+   198→        setBusinessName(data.businessName || businessName.trim())
+   199→        setBusinessDescription(data.businessDescription || businessDesc.trim())
+   200→        setStep('setup-code')
+   201→      } else {
+   202→        setError(data.error || 'Failed to save business info')
+   203→      }
+   204→    } catch {
+   205→      setError('Connection error. Please try again.')
+   206→    } finally {
+   207→      setLoading(false)
+   208→    }
+   209→  }, [businessName, businessDesc, setBusinessName, setBusinessDescription])
+   210→
+   211→  // Handle access code submission (setup or login)
+   212→  const handleCodeSubmit = useCallback(async (e: React.FormEvent) => {
+   213→    e.preventDefault()
+   214→    if (!code.trim()) {
+   215→      setError('Please enter an access code')
+   216→      return
+   217→    }
+   218→
+   219→    setLoading(true)
+   220→    setError('')
+   221→
+   222→    try {
+   223→      const res = await fetch('/api/auth', {
+   224→        method: 'POST',
+   225→        headers: { 'Content-Type': 'application/json' },
+   226→        body: JSON.stringify({ code: code.trim() }),
+   227→      })
+   228→
+   229→      const data = await res.json()
+   230→
+   231→      if (res.ok && data.success) {
+   232→        setStep('success')
+   233→        localStorage.setItem('myos-auth', 'true')
+   234→        // Brief delay for success animation
+   235→        setTimeout(() => {
+   236→          setIsAuthenticated(true)
+   237→        }, 1800)
+   238→      } else {
+   239→        setError(data.error || 'Invalid access code')
+   240→      }
+   241→    } catch {
+   242→      setError('Connection error. Please try again.')
+   243→    } finally {
+   244→      setLoading(false)
+   245→    }
+   246→  }, [code, setIsAuthenticated])
+   247→
+   248→  // ─── Boot screen ───
+   249→  if (step === 'boot') {
+   250→    return (
+   251→      <div className={`fixed inset-0 z-[100] flex items-center justify-center ${DEEP_GRADIENT}`} style={{ height: '100vh', height: '100dvh' }}>
+   252→        <div className="w-full max-w-md px-8">
+   253→          {/* ASCII-style OS logo */}
+   254→          <motion.div
+   255→            initial={{ opacity: 0, y: -20 }}
+   256→            animate={{ opacity: 1, y: 0 }}
+   257→            transition={{ duration: 0.5 }}
+   258→            className="mb-8 text-center"
+   259→          >
+   260→            <h1 className="text-3xl font-mono font-bold text-red-500 tracking-wider">LIFE OS</h1>
+   261→            <p className="text-neutral-500 font-mono text-xs mt-1">v2.0 — Alignment Engine</p>
+   262→          </motion.div>
+   263→
+   264→          {/* Boot lines */}
+   265→          <div className="font-mono text-sm space-y-1.5">
+   266→            {BOOT_LINES.map((line, i) => (
+   267→              <motion.div
+   268→                key={i}
+   269→                initial={{ opacity: 0, x: -10 }}
+   270→                animate={bootLineIndex >= i ? { opacity: 1, x: 0 } : { opacity: 0, x: -10 }}
+   271→                transition={{ duration: 0.25 }}
+   272→                className="flex items-center gap-2"
+   273→              >
+   274→                <span className="text-neutral-500">[</span>
+   275→                <span className={line.ok ? 'text-green-500 font-bold' : 'text-red-500 font-bold'}>
+   276→                  {bootLineIndex >= i ? '  OK  ' : '     '}
+   277→                </span>
+   278→                <span className="text-neutral-500">]</span>
+   279→                <span className="text-neutral-300">{line.text}</span>
+   280→              </motion.div>
+   281→            ))}
+   282→          </div>
+   283→        </div>
+   284→      </div>
+   285→    )
+   286→  }
+   287→
+   288→  // ─── Checking state ───
+   289→  if (step === 'checking') {
+   290→    return (
+   291→      <div className={`fixed inset-0 z-[100] flex items-center justify-center ${DEEP_GRADIENT}`} style={{ height: '100vh', height: '100dvh' }}>
+   292→        <motion.div
+   293→          animate={{ opacity: [0.5, 1, 0.5] }}
+   294→          transition={{ duration: 2.6, repeat: Infinity }}
+   295→          className="relative z-10"
+   296→        >
+   297→          <Sparkles className="h-8 w-8 text-red-400 animate-slow-pulse" />
+   298→        </motion.div>
+   299→      </div>
+   300→    )
+   301→  }
+   302→
+   303→  // Background decoration shared across steps
+   304→  const bgDecoration = (
+   305→    <div className="absolute inset-0 overflow-hidden pointer-events-none">
+   306→      <div className="absolute -top-1/2 -left-1/4 w-[80vw] h-[80vw] bg-red-500/8 rounded-full blur-3xl" />
+   307→      <div className="absolute -bottom-1/3 -right-1/4 w-[70vw] h-[70vw] bg-red-700/10 rounded-full blur-3xl" />
+   308→      <div
+   309→        className="absolute inset-0 opacity-[0.04]"
+   310→        style={{
+   311→          backgroundImage: 'radial-gradient(circle, #dc2626 1px, transparent 1px)',
+   312→          backgroundSize: '40px 40px',
+   313→        }}
+   314→      />
+   315→      <div
+   316→        className="absolute inset-0"
+   317→        style={{
+   318→          background: 'radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.55) 100%)',
+   319→        }}
+   320→      />
+   321→    </div>
+   322→  )
+   323→
+   324→  return (
+   325→    <AnimatePresence mode="wait">
+   326→      {step === 'setup-name' && (
+   327→        <motion.div
+   328→          key="setup-name"
+   329→          initial={{ opacity: 0 }}
+   330→          animate={{ opacity: 1 }}
+   331→          exit={{ opacity: 0, scale: 1.02 }}
+   332→          transition={{ duration: 0.5 }}
+   333→          className={`fixed inset-0 z-[100] flex items-center justify-center ${DEEP_GRADIENT} overflow-y-auto overflow-x-hidden`}
+   334→          style={{ height: '100vh', height: '100dvh' }}
+   335→        >
+   336→          {bgDecoration}
+   337→          <div className="relative z-10 w-full min-h-full flex items-center justify-center py-4">
+   338→            <motion.div
+   339→              initial={{ opacity: 0, y: 30, scale: 0.95 }}
+   340→              animate={{ opacity: 1, y: 0, scale: 1 }}
+   341→              transition={{ duration: 0.6, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
+   342→              className="relative z-10 w-full max-w-md mx-4"
+   343→            >
+   344→              <div className="bg-white/[0.04] backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl shadow-black/50 p-8 md:p-10">
+   345→                {/* Logo */}
+   346→                <motion.div
+   347→                  initial={{ opacity: 0, y: -10 }}
+   348→                  animate={{ opacity: 1, y: 0 }}
+   349→                  transition={{ delay: 0.3, duration: 0.5 }}
+   350→                  className="flex flex-col items-center mb-8"
+   351→                >
+   352→                  <motion.div
+   353→                    className="relative flex items-center justify-center w-20 h-20 rounded-3xl bg-red-600/15 border border-red-500/30 mb-5 overflow-hidden animate-color-sweep"
+   354→                    whileHover={{ scale: 1.05, rotate: 5 }}
+   355→                    transition={{ type: 'spring', stiffness: 260, damping: 18 }}
+   356→                  >
+   357→                    <Sparkles className="h-10 w-10 text-red-400 relative z-10" />
+   358→                  </motion.div>
+   359→                  <h1 className="text-3xl font-bold text-white tracking-tight">
+   360→                    Welcome
+   361→                  </h1>
+   362→                  <p className="text-neutral-400 text-[11px] mt-1.5 tracking-[0.18em] uppercase">
+   363→                    Set Up Your Life OS
+   364→                  </p>
+   365→                </motion.div>
+   366→
+   367→                {/* Name Form */}
+   368→                <form onSubmit={handleNameSubmit}>
+   369→                  <motion.div
+   370→                    initial={{ opacity: 0, y: 10 }}
+   371→                    animate={{ opacity: 1, y: 0 }}
+   372→                    transition={{ delay: 0.6, duration: 0.6 }}
+   373→                    className="space-y-5"
+   374→                  >
+   375→                    <div>
+   376→                      <label
+   377→                        htmlFor="user-name"
+   378→                        className="flex items-center justify-center gap-1.5 text-sm font-medium text-neutral-100 mb-2.5 tracking-wide"
+   379→                      >
+   380→                        <User className="h-3.5 w-3.5 text-red-400" />
+   381→                        What is your name?
+   382→                      </label>
+   383→                      <Input
+   384→                        id="user-name"
+   385→                        type="text"
+   386→                        placeholder="Enter your first name"
+   387→                        value={name}
+   388→                        onChange={(e) => {
+   389→                          setName(e.target.value)
+   390→                          setError('')
+   391→                        }}
+   392→                        className="bg-white/5 border-red-500/30 text-white placeholder:text-neutral-400 text-center text-xl h-14 rounded-lg focus-visible:border-red-500 focus-visible:ring-red-500/40 focus-visible:ring-2 transition-all"
+   393→                        autoFocus
+   394→                        autoComplete="off"
+   395→                      />
+   396→                    </div>
+   397→
+   398→                    {/* OS Name Preview */}
+   399→                    {name.trim() && (
+   400→                      <motion.div
+   401→                        initial={{ opacity: 0, y: -5 }}
+   402→                        animate={{ opacity: 1, y: 0 }}
+   403→                        className="text-center"
+   404→                      >
+   405→                        <p className="text-neutral-400 text-xs">Your OS will be called</p>
+   406→                        <p className="text-red-400 text-lg font-bold mt-1">{osNamePreview}</p>
+   407→                      </motion.div>
+   408→                    )}
+   409→
+   410→                    <AnimatePresence>
+   411→                      {error && (
+   412→                        <motion.p
+   413→                          initial={{ opacity: 0, y: -5 }}
+   414→                          animate={{ opacity: 1, y: 0 }}
+   415→                          exit={{ opacity: 0, y: -5 }}
+   416→                          className="text-red-400 text-xs text-center font-medium"
+   417→                        >
+   418→                          {error}
+   419→                        </motion.p>
+   420→                      )}
+   421→                    </AnimatePresence>
+   422→
+   423→                    <Button
+   424→                      type="submit"
+   425→                      disabled={loading || !name.trim()}
+   426→                      className="w-full h-14 bg-red-600 hover:bg-red-500 active:bg-red-700 text-white font-semibold text-base rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-red-900/40 hover:shadow-red-700/40"
+   427→                    >
+   428→                      {loading ? (
+   429→                        <motion.div
+   430→                          animate={{ rotate: 360 }}
+   431→                          transition={{ duration: 1.4, repeat: Infinity, ease: 'linear' }}
+   432→                          className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full"
+   433→                        />
+   434→                      ) : (
+   435→                        <>
+   436→                          Continue
+   437→                          <ArrowRight className="h-4 w-4 ml-2" />
+   438→                        </>
+   439→                      )}
+   440→                    </Button>
+   441→                  </motion.div>
+   442→                </form>
+   443→
+   444→                <p className="text-neutral-500 text-[10px] text-center mt-6 tracking-[0.18em] uppercase">
+   445→                  Aligned &bull; Disciplined &bull; Joyful
+   446→                </p>
+   447→              </div>
+   448→            </motion.div>
+   449→          </div>
+   450→        </motion.div>
+   451→      )}
+   452→
+   453→      {step === 'setup-business' && (
+   454→        <motion.div
+   455→          key="setup-business"
+   456→          initial={{ opacity: 0, x: 50 }}
+   457→          animate={{ opacity: 1, x: 0 }}
+   458→          exit={{ opacity: 0, x: -50 }}
+   459→          transition={{ duration: 0.5 }}
+   460→          className={`fixed inset-0 z-[100] flex items-center justify-center ${DEEP_GRADIENT} overflow-y-auto overflow-x-hidden`}
+   461→          style={{ height: '100vh', height: '100dvh' }}
+   462→        >
+   463→          {bgDecoration}
+   464→          <div className="relative z-10 w-full min-h-full flex items-center justify-center py-4">
+   465→            <motion.div
+   466→              initial={{ opacity: 0, y: 30, scale: 0.95 }}
+   467→              animate={{ opacity: 1, y: 0, scale: 1 }}
+   468→              transition={{ duration: 0.6, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
+   469→              className="relative z-10 w-full max-w-md mx-4"
+   470→            >
+   471→              <div className="bg-white/[0.04] backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl shadow-black/50 p-8 md:p-10">
+   472→                {/* Logo */}
+   473→                <motion.div
+   474→                  initial={{ opacity: 0, y: -10 }}
+   475→                  animate={{ opacity: 1, y: 0 }}
+   476→                  transition={{ delay: 0.3, duration: 0.5 }}
+   477→                  className="flex flex-col items-center mb-8"
+   478→                >
+   479→                  <motion.div
+   480→                    className="relative flex items-center justify-center w-20 h-20 rounded-3xl bg-red-600/15 border border-red-500/30 mb-5 overflow-hidden animate-color-sweep"
+   481→                    whileHover={{ scale: 1.05, rotate: 5 }}
+   482→                    transition={{ type: 'spring', stiffness: 260, damping: 18 }}
+   483→                  >
+   484→                    <Building2 className="h-10 w-10 text-red-400 relative z-10" />
+   485→                  </motion.div>
+   486→                  <h1 className="text-3xl font-bold text-white tracking-tight">
+   487→                    Your Business
+   488→                  </h1>
+   489→                  <p className="text-neutral-400 text-[11px] mt-1.5 tracking-[0.18em] uppercase">
+   490→                    Tell us about what you do
+   491→                  </p>
+   492→                </motion.div>
+   493→
+   494→                {/* Business Form */}
+   495→                <form onSubmit={handleBusinessSubmit}>
+   496→                  <motion.div
+   497→                    initial={{ opacity: 0, y: 10 }}
+   498→                    animate={{ opacity: 1, y: 0 }}
+   499→                    transition={{ delay: 0.6, duration: 0.6 }}
+   500→                    className="space-y-5"
+   501→                  >
+   502→                    <div>
+   503→                      <label
+   504→                        htmlFor="business-name"
+   505→                        className="flex items-center justify-center gap-1.5 text-sm font-medium text-neutral-100 mb-2.5 tracking-wide"
+   506→                      >
+   507→                        <Building2 className="h-3.5 w-3.5 text-red-400" />
+   508→                        What is your business name?
+   509→                      </label>
+   510→                      <Input
+   511→                        id="business-name"
+   512→                        type="text"
+   513→                        placeholder="e.g., Havilah Learning Hub, My Consulting, etc."
+   514→                        value={businessName}
+   515→                        onChange={(e) => {
+   516→                          setLocalBusinessName(e.target.value)
+   517→                          setError('')
+   518→                        }}
+   519→                        className="bg-white/5 border-red-500/30 text-white placeholder:text-neutral-400 text-center text-lg h-14 rounded-lg focus-visible:border-red-500 focus-visible:ring-red-500/40 focus-visible:ring-2 transition-all"
+   520→                        autoFocus
+   521→                        autoComplete="off"
+   522→                      />
+   523→                    </div>
+   524→
+   525→                    <div>
+   526→                      <label
+   527→                        htmlFor="business-desc"
+   528→                        className="flex items-center justify-center gap-1.5 text-sm font-medium text-neutral-100 mb-2.5 tracking-wide"
+   529→                      >
+   530→                        Describe your business
+   531→                      </label>
+   532→                      <textarea
+   533→                        id="business-desc"
+   534→                        placeholder="What does your business do? What products/services do you offer? Who are your clients?"
+   535→                        value={businessDesc}
+   536→                        onChange={(e) => {
+   537→                          setLocalBusinessDesc(e.target.value)
+   538→                          setError('')
+   539→                        }}
+   540→                        rows={3}
+   541→                        className="flex w-full rounded-lg border border-red-500/30 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40 focus-visible:border-red-500 transition-all resize-none"
+   542→                        autoComplete="off"
+   543→                      />
+   544→                    </div>
+   545→
+   546→                    <AnimatePresence>
+   547→                      {error && (
+   548→                        <motion.p
+   549→                          initial={{ opacity: 0, y: -5 }}
+   550→                          animate={{ opacity: 1, y: 0 }}
+   551→                          exit={{ opacity: 0, y: -5 }}
+   552→                          className="text-red-400 text-xs text-center font-medium"
+   553→                        >
+   554→                          {error}
+   555→                        </motion.p>
+   556→                      )}
+   557→                    </AnimatePresence>
+   558→
+   559→                    <Button
+   560→                      type="submit"
+   561→                      disabled={loading}
+   562→                      className="w-full h-14 bg-red-600 hover:bg-red-500 active:bg-red-700 text-white font-semibold text-base rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-red-900/40 hover:shadow-red-700/40"
+   563→                    >
+   564→                      {loading ? (
+   565→                        <motion.div
+   566→                          animate={{ rotate: 360 }}
+   567→                          transition={{ duration: 1.4, repeat: Infinity, ease: 'linear' }}
+   568→                          className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full"
+   569→                        />
+   570→                      ) : (
+   571→                        <>
+   572→                          Continue
+   573→                          <ArrowRight className="h-4 w-4 ml-2" />
+   574→                        </>
+   575→                      )}
+   576→                    </Button>
+   577→
+   578→                    <button
+   579→                      type="button"
+   580→                      onClick={() => {
+   581→                        setBusinessName('')
+   582→                        setBusinessDescription('')
+   583→                        setStep('setup-code')
+   584→                      }}
+   585→                      className="w-full text-center text-xs text-neutral-500 hover:text-neutral-300 transition-colors py-2"
+   586→                    >
+   587→                      Skip for now — I&apos;ll set this up later
+   588→                    </button>
+   589→                  </motion.div>
+   590→                </form>
+   591→
+   592→                <p className="text-neutral-500 text-[10px] text-center mt-6 tracking-[0.18em] uppercase">
+   593→                  Aligned &bull; Disciplined &bull; Joyful
+   594→                </p>
+   595→              </div>
+   596→            </motion.div>
+   597→          </div>
+   598→        </motion.div>
+   599→      )}
+   600→
+   601→      {step === 'setup-code' && (
+   602→        <motion.div
+   603→          key="setup-code"
+   604→          initial={{ opacity: 0, x: 50 }}
+   605→          animate={{ opacity: 1, x: 0 }}
+   606→          exit={{ opacity: 0, x: -50 }}
+   607→          transition={{ duration: 0.5 }}
+   608→          className={`fixed inset-0 z-[100] flex items-center justify-center ${DEEP_GRADIENT} overflow-y-auto overflow-x-hidden`}
+   609→          style={{ height: '100vh', height: '100dvh' }}
+   610→        >
+   611→          {bgDecoration}
+   612→          <div className="relative z-10 w-full min-h-full flex items-center justify-center py-4">
+   613→            <motion.div
+   614→              initial={{ opacity: 0, y: 30, scale: 0.95 }}
+   615→              animate={{ opacity: 1, y: 0, scale: 1 }}
+   616→              transition={{ duration: 0.6, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
+   617→              className="relative z-10 w-full max-w-md mx-4"
+   618→            >
+   619→              <div className="bg-white/[0.04] backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl shadow-black/50 p-8 md:p-10">
+   620→                {/* Logo — shows personalized OS name */}
+   621→                <motion.div
+   622→                  initial={{ opacity: 0, y: -10 }}
+   623→                  animate={{ opacity: 1, y: 0 }}
+   624→                  transition={{ delay: 0.3, duration: 0.5 }}
+   625→                  className="flex flex-col items-center mb-8"
+   626→                >
+   627→                  <motion.div
+   628→                    className="relative flex items-center justify-center w-20 h-20 rounded-3xl bg-red-600/15 border border-red-500/30 mb-5 overflow-hidden animate-color-sweep"
+   629→                    whileHover={{ scale: 1.05, rotate: 5 }}
+   630→                    transition={{ type: 'spring', stiffness: 260, damping: 18 }}
+   631→                  >
+   632→                    <Sparkles className="h-10 w-10 text-red-400 relative z-10" />
+   633→                  </motion.div>
+   634→                  <h1 className="text-3xl font-bold text-white tracking-tight">
+   635→                    {osNamePreview}
+   636→                  </h1>
+   637→                  <p className="text-neutral-400 text-[11px] mt-1.5 tracking-[0.18em] uppercase">
+   638→                    Life Operating System
+   639→                  </p>
+   640→                </motion.div>
+   641→
+   642→                {/* Code Form */}
+   643→                <form onSubmit={handleCodeSubmit}>
+   644→                  <motion.div
+   645→                    initial={{ opacity: 0, y: 10 }}
+   646→                    animate={{ opacity: 1, y: 0 }}
+   647→                    transition={{ delay: 0.6, duration: 0.6 }}
+   648→                    className="space-y-5"
+   649→                  >
+   650→                    <div>
+   651→                      <label
+   652→                        htmlFor="setup-access-code"
+   653→                        className="flex items-center justify-center gap-1.5 text-sm font-medium text-neutral-100 mb-2.5 tracking-wide"
+   654→                      >
+   655→                        <ShieldCheck className="h-3.5 w-3.5 text-red-400" />
+   656→                        Create Your Access Code
+   657→                      </label>
+   658→                      <Input
+   659→                        id="setup-access-code"
+   660→                        type="password"
+   661→                        placeholder="Choose an access code"
+   662→                        value={code}
+   663→                        onChange={(e) => {
+   664→                          setCode(e.target.value)
+   665→                          setError('')
+   666→                        }}
+   667→                        className="bg-white/5 border-red-500/30 text-white placeholder:text-neutral-400 text-center text-xl tracking-[0.2em] h-14 rounded-lg focus-visible:border-red-500 focus-visible:ring-red-500/40 focus-visible:ring-2 transition-all"
+   668→                        autoFocus
+   669→                        autoComplete="off"
+   670→                      />
+   671→                    </div>
+   672→
+   673→                    <AnimatePresence>
+   674→                      {error && (
+   675→                        <motion.p
+   676→                          initial={{ opacity: 0, y: -5 }}
+   677→                          animate={{ opacity: 1, y: 0 }}
+   678→                          exit={{ opacity: 0, y: -5 }}
+   679→                          className="text-red-400 text-xs text-center font-medium"
+   680→                        >
+   681→                          {error}
+   682→                        </motion.p>
+   683→                      )}
+   684→                    </AnimatePresence>
+   685→
+   686→                    <Button
+   687→                      type="submit"
+   688→                      disabled={loading || !code.trim()}
+   689→                      className="w-full h-14 bg-red-600 hover:bg-red-500 active:bg-red-700 text-white font-semibold text-base rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-red-900/40 hover:shadow-red-700/40"
+   690→                    >
+   691→                      {loading ? (
+   692→                        <motion.div
+   693→                          animate={{ rotate: 360 }}
+   694→                          transition={{ duration: 1.4, repeat: Infinity, ease: 'linear' }}
+   695→                          className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full"
+   696→                        />
+   697→                      ) : (
+   698→                        <>
+   699→                          Create & Enter
+   700→                          <ArrowRight className="h-4 w-4 ml-2" />
+   701→                        </>
+   702→                      )}
+   703→                    </Button>
+   704→                  </motion.div>
+   705→                </form>
+   706→
+   707→                <motion.p
+   708→                  initial={{ opacity: 0 }}
+   709→                  animate={{ opacity: 1 }}
+   710→                  transition={{ delay: 1 }}
+   711→                  className="text-neutral-400 text-xs text-center mt-5"
+   712→                >
+   713→                  This code will protect your data. Remember it!
+   714→                </motion.p>
+   715→
+   716→                <p className="text-neutral-500 text-[10px] text-center mt-6 tracking-[0.18em] uppercase">
+   717→                  Aligned &bull; Disciplined &bull; Joyful
+   718→                </p>
+   719→              </div>
+   720→            </motion.div>
+   721→          </div>
+   722→        </motion.div>
+   723→      )}
+   724→
+   725→      {step === 'login' && (
+   726→        <motion.div
+   727→          key="auth-gate"
+   728→          initial={{ opacity: 0 }}
+   729→          animate={{ opacity: 1 }}
+   730→          exit={{ opacity: 0, scale: 1.05 }}
+   731→          transition={{ duration: 0.7 }}
+   732→          className={`fixed inset-0 z-[100] flex items-center justify-center ${DEEP_GRADIENT} overflow-y-auto overflow-x-hidden`}
+   733→          style={{ height: '100vh', height: '100dvh' }}
+   734→        >
+   735→          {bgDecoration}
+   736→          <div className="relative z-10 w-full min-h-full flex items-center justify-center py-4">
+   737→            <motion.div
+   738→              initial={{ opacity: 0, y: 30, scale: 0.95 }}
+   739→              animate={{ opacity: 1, y: 0, scale: 1 }}
+   740→              transition={{ duration: 0.6, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
+   741→              className="relative z-10 w-full max-w-md mx-4"
+   742→            >
+   743→              <div className="bg-white/[0.04] backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl shadow-black/50 p-8 md:p-10">
+   744→                {/* Logo — shows the USER'S personalized OS name */}
+   745→                <motion.div
+   746→                  initial={{ opacity: 0, y: -10 }}
+   747→                  animate={{ opacity: 1, y: 0 }}
+   748→                  transition={{ delay: 0.3, duration: 0.5 }}
+   749→                  className="flex flex-col items-center mb-8"
+   750→                >
+   751→                  <motion.div
+   752→                    className="relative flex items-center justify-center w-20 h-20 rounded-3xl bg-red-600/15 border border-red-500/30 mb-5 overflow-hidden animate-color-sweep"
+   753→                    whileHover={{ scale: 1.05, rotate: 5 }}
+   754→                    transition={{ type: 'spring', stiffness: 260, damping: 18 }}
+   755→                  >
+   756→                    <Sparkles className="h-10 w-10 text-red-400 relative z-10" />
+   757→                  </motion.div>
+   758→                  <h1 className="text-3xl font-bold text-white tracking-tight">
+   759→                    {storedOsName}
+   760→                  </h1>
+   761→                  <p className="text-neutral-400 text-[11px] mt-1.5 tracking-[0.18em] uppercase">
+   762→                    Life Operating System
+   763→                  </p>
+   764→                </motion.div>
+   765→
+   766→                {/* Form */}
+   767→                <form onSubmit={handleCodeSubmit}>
+   768→                  <motion.div
+   769→                    initial={{ opacity: 0, y: 10 }}
+   770→                    animate={{ opacity: 1, y: 0 }}
+   771→                    transition={{ delay: 0.6, duration: 0.6 }}
+   772→                    className="space-y-5"
+   773→                  >
+   774→                    <div>
+   775→                      <label
+   776→                        htmlFor="access-code"
+   777→                        className="flex items-center justify-center gap-1.5 text-sm font-medium text-neutral-100 mb-2.5 tracking-wide"
+   778→                      >
+   779→                        <ShieldCheck className="h-3.5 w-3.5 text-red-400" />
+   780→                        Enter Access Code
+   781→                      </label>
+   782→                      <Input
+   783→                        id="access-code"
+   784→                        type="password"
+   785→                        placeholder="Enter your access code"
+   786→                        value={code}
+   787→                        onChange={(e) => {
+   788→                          setCode(e.target.value)
+   789→                          setError('')
+   790→                        }}
+   791→                        className="bg-white/5 border-red-500/30 text-white placeholder:text-neutral-400 text-center text-xl tracking-[0.2em] h-14 rounded-lg focus-visible:border-red-500 focus-visible:ring-red-500/40 focus-visible:ring-2 transition-all"
+   792→                        autoFocus
+   793→                        autoComplete="off"
+   794→                      />
+   795→                    </div>
+   796→
+   797→                    <AnimatePresence>
+   798→                      {error && (
+   799→                        <motion.p
+   800→                          initial={{ opacity: 0, y: -5 }}
+   801→                          animate={{ opacity: 1, y: 0 }}
+   802→                          exit={{ opacity: 0, y: -5 }}
+   803→                          className="text-red-400 text-xs text-center font-medium"
+   804→                        >
+   805→                          {error}
+   806→                        </motion.p>
+   807→                      )}
+   808→                    </AnimatePresence>
+   809→
+   810→                    <Button
+   811→                      type="submit"
+   812→                      disabled={loading || !code.trim()}
+   813→                      className="w-full h-14 bg-red-600 hover:bg-red-500 active:bg-red-700 text-white font-semibold text-base rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-red-900/40 hover:shadow-red-700/40"
+   814→                    >
+   815→                      {loading ? (
+   816→                        <motion.div
+   817→                          animate={{ rotate: 360 }}
+   818→                          transition={{ duration: 1.4, repeat: Infinity, ease: 'linear' }}
+   819→                          className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full"
+   820→                        />
+   821→                      ) : (
+   822→                        <>
+   823→                          Unlock
+   824→                          <ArrowRight className="h-4 w-4 ml-2" />
+   825→                        </>
+   826→                      )}
+   827→                    </Button>
+   828→                  </motion.div>
+   829→                </form>
+   830→
+   831→                {/* Footer text */}
+   832→                <p className="text-neutral-500 text-[10px] text-center mt-6 tracking-[0.18em] uppercase">
+   833→                  Aligned &bull; Disciplined &bull; Joyful
+   834→                </p>
+   835→              </div>
+   836→            </motion.div>
+   837→          </div>
+   838→        </motion.div>
+   839→      )}
+   840→
+   841→      {step === 'success' && (
+   842→        <motion.div
+   843→          key="auth-success"
+   844→          initial={{ opacity: 0 }}
+   845→          animate={{ opacity: 1 }}
+   846→          exit={{ opacity: 0 }}
+   847→          className={`fixed inset-0 z-[100] flex items-center justify-center ${DEEP_GRADIENT}`}
+   848→          style={{ height: '100vh', height: '100dvh' }}
+   849→        >
+   850→          <motion.div
+   851→            initial={{ scale: 0 }}
+   852→            animate={{ scale: 1 }}
+   853→            transition={{ type: 'spring', stiffness: 200, damping: 15 }}
+   854→            className="flex flex-col items-center relative z-10"
+   855→          >
+   856→            <motion.div
+   857→              initial={{ scale: 0 }}
+   858→              animate={{ scale: 1 }}
+   859→              transition={{ delay: 0.2, type: 'spring', stiffness: 300 }}
+   860→              className="mb-5"
+   861→            >
+   862→              <CheckCircle2 className="h-16 w-16 text-red-400" />
+   863→            </motion.div>
+   864→            <motion.p
+   865→              initial={{ opacity: 0, y: 10 }}
+   866→              animate={{ opacity: 1, y: 0 }}
+   867→              transition={{ delay: 0.4 }}
+   868→              className="text-white text-lg font-medium"
+   869→            >
+   870→              {isSetUp ? 'Welcome back' : `Welcome to ${storedOsName}`}
+   871→            </motion.p>
+   872→            <motion.p
+   873→              initial={{ opacity: 0 }}
+   874→              animate={{ opacity: 1 }}
+   875→              transition={{ delay: 0.6 }}
+   876→              className="text-neutral-400 text-sm mt-1.5"
+   877→            >
+   878→              Access granted
+   879→            </motion.p>
+   880→          </motion.div>
+   881→        </motion.div>
+   882→      )}
+   883→    </AnimatePresence>
+   884→  )
+   885→}
+   886→

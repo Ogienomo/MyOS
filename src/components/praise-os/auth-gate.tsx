@@ -2,14 +2,14 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Sparkles, ArrowRight, CheckCircle2, ShieldCheck, User, Building2 } from 'lucide-react'
+import { Sparkles, ArrowRight, CheckCircle2, ShieldCheck, User, Building2, Camera, MapPin, Phone, Mail, Target, Star, Plus, X } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { useAppStore } from '@/lib/store'
 
 const DEEP_GRADIENT = 'bg-gradient-to-br from-black via-neutral-950 to-red-950/40 ambient-gradient'
 
-type AuthStep = 'boot' | 'checking' | 'setup-name' | 'setup-business' | 'setup-code' | 'login' | 'success'
+type AuthStep = 'boot' | 'checking' | 'setup-name' | 'setup-business' | 'setup-profile' | 'setup-code' | 'login' | 'success'
 
 // Boot sequence lines — PraiseOS-style
 const BOOT_LINES = [
@@ -21,7 +21,7 @@ const BOOT_LINES = [
 ]
 
 export function AuthGate() {
-  const { setIsAuthenticated, setUserName, setOsName, setIsSetupComplete, setBusinessName, setBusinessDescription } = useAppStore()
+  const { setIsAuthenticated, setUserName, setOsName, setIsSetupComplete, setBusinessName, setBusinessDescription, setProfilePhoto, setBio, setLocation, setPhone, setEmail, setPersonalValues, setMissionStatement } = useAppStore()
   const [step, setStep] = useState<AuthStep>('boot')
   const [code, setCode] = useState('')
   const [name, setName] = useState('')
@@ -34,6 +34,17 @@ export function AuthGate() {
   const [bootLineIndex, setBootLineIndex] = useState(-1)
   const [storedOsName, setStoredOsName] = useState('MyOS')
   const checkRan = useRef(false)
+
+  // Profile setup state
+  const [profilePhoto, setLocalProfilePhoto] = useState('')
+  const [profileBio, setLocalBio] = useState('')
+  const [profileLocation, setLocalLocation] = useState('')
+  const [profilePhone, setLocalPhone] = useState('')
+  const [profileEmail, setLocalEmail] = useState('')
+  const [profileValues, setLocalValues] = useState<string[]>(['Purpose', 'Growth', 'Integrity', 'Discipline'])
+  const [profileMission, setLocalMission] = useState('')
+  const [newValueInput, setNewValueInput] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // ─── Boot animation ───
   useEffect(() => {
@@ -82,6 +93,13 @@ export function AuthGate() {
           if (data.businessDescription) {
             setBusinessDescription(data.businessDescription)
           }
+          if (data.profilePhoto) setProfilePhoto(data.profilePhoto)
+          if (data.bio) setBio(data.bio)
+          if (data.location) setLocation(data.location)
+          if (data.phone) setPhone(data.phone)
+          if (data.email) setEmail(data.email)
+          if (data.personalValues?.length) setPersonalValues(data.personalValues)
+          if (data.missionStatement) setMissionStatement(data.missionStatement)
           if (data.isSetupComplete) {
             setIsSetupComplete(true)
           }
@@ -114,6 +132,13 @@ export function AuthGate() {
         if (profileData.businessDescription) {
           setBusinessDescription(profileData.businessDescription)
         }
+        if (profileData.profilePhoto) setProfilePhoto(profileData.profilePhoto)
+        if (profileData.bio) setBio(profileData.bio)
+        if (profileData.location) setLocation(profileData.location)
+        if (profileData.phone) setPhone(profileData.phone)
+        if (profileData.email) setEmail(profileData.email)
+        if (profileData.personalValues?.length) setPersonalValues(profileData.personalValues)
+        if (profileData.missionStatement) setMissionStatement(profileData.missionStatement)
 
         if (!authData.isSetUp || !profileData.isSetupComplete) {
           // Brand new user — show setup flow (name first, then business, then code)
@@ -128,7 +153,7 @@ export function AuthGate() {
       }
     }
     checkAuth()
-  }, [step, setIsAuthenticated, setUserName, setOsName, setIsSetupComplete, setBusinessName, setBusinessDescription])
+  }, [step, setIsAuthenticated, setUserName, setOsName, setIsSetupComplete, setBusinessName, setBusinessDescription, setProfilePhoto, setBio, setLocation, setPhone, setEmail, setPersonalValues, setMissionStatement])
 
   // Update OS name preview when name changes
   useEffect(() => {
@@ -197,7 +222,7 @@ export function AuthGate() {
       if (res.ok && data.success) {
         setBusinessName(data.businessName || businessName.trim())
         setBusinessDescription(data.businessDescription || businessDesc.trim())
-        setStep('setup-code')
+        setStep('setup-profile')
       } else {
         setError(data.error || 'Failed to save business info')
       }
@@ -207,6 +232,63 @@ export function AuthGate() {
       setLoading(false)
     }
   }, [businessName, businessDesc, setBusinessName, setBusinessDescription])
+
+  // Handle profile details submission (first run setup — step 3)
+  const handleProfileSubmit = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    setLoading(true)
+    setError('')
+
+    try {
+      const res = await fetch('/api/user-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          profilePhoto,
+          bio: profileBio,
+          location: profileLocation,
+          phone: profilePhone,
+          email: profileEmail,
+          personalValues: profileValues,
+          missionStatement: profileMission,
+        }),
+      })
+
+      const data = await res.json()
+
+      if (res.ok && data.success) {
+        setProfilePhoto(data.profilePhoto || profilePhoto)
+        setBio(data.bio || profileBio)
+        setLocation(data.location || profileLocation)
+        setPhone(data.phone || profilePhone)
+        setEmail(data.email || profileEmail)
+        setPersonalValues(data.personalValues || profileValues)
+        setMissionStatement(data.missionStatement || profileMission)
+        setStep('setup-code')
+      } else {
+        setError(data.error || 'Failed to save profile')
+      }
+    } catch {
+      setError('Connection error. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }, [profilePhoto, profileBio, profileLocation, profilePhone, profileEmail, profileValues, profileMission, setProfilePhoto, setBio, setLocation, setPhone, setEmail, setPersonalValues, setMissionStatement])
+
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 2 * 1024 * 1024) {
+      setError('Image must be under 2MB')
+      return
+    }
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      setLocalProfilePhoto(reader.result as string)
+    }
+    reader.readAsDataURL(file)
+  }
 
   // Handle access code submission (setup or login)
   const handleCodeSubmit = useCallback(async (e: React.FormEvent) => {
@@ -580,11 +662,253 @@ export function AuthGate() {
                       onClick={() => {
                         setBusinessName('')
                         setBusinessDescription('')
-                        setStep('setup-code')
+                        setStep('setup-profile')
                       }}
                       className="w-full text-center text-xs text-neutral-500 hover:text-neutral-300 transition-colors py-2"
                     >
                       Skip for now — I&apos;ll set this up later
+                    </button>
+                  </motion.div>
+                </form>
+
+                <p className="text-neutral-500 text-[10px] text-center mt-6 tracking-[0.18em] uppercase">
+                  Aligned &bull; Disciplined &bull; Joyful
+                </p>
+              </div>
+            </motion.div>
+          </div>
+        </motion.div>
+      )}
+
+      {step === 'setup-profile' && (
+        <motion.div
+          key="setup-profile"
+          initial={{ opacity: 0, x: 50 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -50 }}
+          transition={{ duration: 0.5 }}
+          className={`fixed inset-0 z-[100] flex items-center justify-center ${DEEP_GRADIENT} overflow-y-auto overflow-x-hidden`}
+          style={{ height: '100vh', height: '100dvh' }}
+        >
+          {bgDecoration}
+          <div className="relative z-10 w-full min-h-full flex items-center justify-center py-4">
+            <motion.div
+              initial={{ opacity: 0, y: 30, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ duration: 0.6, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
+              className="relative z-10 w-full max-w-md mx-4"
+            >
+              <div className="bg-white/[0.04] backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl shadow-black/50 p-8 md:p-10 max-h-[90vh] overflow-y-auto">
+                {/* Logo */}
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3, duration: 0.5 }}
+                  className="flex flex-col items-center mb-8"
+                >
+                  {/* Photo upload */}
+                  <motion.div
+                    className="relative w-20 h-20 rounded-3xl overflow-hidden border border-red-500/30 mb-5 bg-red-600/15 flex items-center justify-center cursor-pointer"
+                    whileHover={{ scale: 1.05 }}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    {profilePhoto ? (
+                      <img src={profilePhoto} alt="Profile" className="w-full h-full object-cover" />
+                    ) : (
+                      <Camera className="h-8 w-8 text-red-400" />
+                    )}
+                    <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                      <Camera className="h-6 w-6 text-white" />
+                    </div>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handlePhotoUpload}
+                      className="hidden"
+                    />
+                  </motion.div>
+                  <h1 className="text-3xl font-bold text-white tracking-tight">
+                    Your Profile
+                  </h1>
+                  <p className="text-neutral-400 text-[11px] mt-1.5 tracking-[0.18em] uppercase">
+                    Tell us about yourself
+                  </p>
+                </motion.div>
+
+                {/* Profile Form */}
+                <form onSubmit={handleProfileSubmit}>
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.6, duration: 0.6 }}
+                    className="space-y-4"
+                  >
+                    {/* Bio */}
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-neutral-200 mb-1.5">
+                        <User className="h-3 w-3 text-red-400" /> About You
+                      </label>
+                      <textarea
+                        placeholder="A brief description about yourself — your journey, passions, what drives you..."
+                        value={profileBio}
+                        onChange={(e) => { setLocalBio(e.target.value); setError('') }}
+                        rows={2}
+                        className="flex w-full rounded-lg border border-red-500/30 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40 focus-visible:border-red-500 transition-all resize-none"
+                        autoComplete="off"
+                      />
+                    </div>
+
+                    {/* Location + Phone */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="flex items-center gap-1.5 text-xs font-medium text-neutral-200 mb-1.5">
+                          <MapPin className="h-3 w-3 text-red-400" /> Location
+                        </label>
+                        <Input
+                          type="text"
+                          placeholder="e.g., Lagos"
+                          value={profileLocation}
+                          onChange={(e) => { setLocalLocation(e.target.value); setError('') }}
+                          className="bg-white/5 border-red-500/30 text-white placeholder:text-neutral-400 text-sm h-10 rounded-lg focus-visible:border-red-500 focus-visible:ring-red-500/40 focus-visible:ring-2 transition-all"
+                          autoComplete="off"
+                        />
+                      </div>
+                      <div>
+                        <label className="flex items-center gap-1.5 text-xs font-medium text-neutral-200 mb-1.5">
+                          <Phone className="h-3 w-3 text-red-400" /> Phone
+                        </label>
+                        <Input
+                          type="tel"
+                          placeholder="e.g., +234 800..."
+                          value={profilePhone}
+                          onChange={(e) => { setLocalPhone(e.target.value); setError('') }}
+                          className="bg-white/5 border-red-500/30 text-white placeholder:text-neutral-400 text-sm h-10 rounded-lg focus-visible:border-red-500 focus-visible:ring-red-500/40 focus-visible:ring-2 transition-all"
+                          autoComplete="off"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Email */}
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-neutral-200 mb-1.5">
+                        <Mail className="h-3 w-3 text-red-400" /> Email
+                      </label>
+                      <Input
+                        type="email"
+                        placeholder="you@example.com"
+                        value={profileEmail}
+                        onChange={(e) => { setLocalEmail(e.target.value); setError('') }}
+                        className="bg-white/5 border-red-500/30 text-white placeholder:text-neutral-400 text-sm h-10 rounded-lg focus-visible:border-red-500 focus-visible:ring-red-500/40 focus-visible:ring-2 transition-all"
+                        autoComplete="off"
+                      />
+                    </div>
+
+                    {/* Mission Statement */}
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-neutral-200 mb-1.5">
+                        <Target className="h-3 w-3 text-red-400" /> Your Mission
+                      </label>
+                      <textarea
+                        placeholder="What is your personal mission? What were you put on this earth to do?"
+                        value={profileMission}
+                        onChange={(e) => { setLocalMission(e.target.value); setError('') }}
+                        rows={2}
+                        className="flex w-full rounded-lg border border-red-500/30 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40 focus-visible:border-red-500 transition-all resize-none"
+                        autoComplete="off"
+                      />
+                    </div>
+
+                    {/* Core Values */}
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-neutral-200 mb-1.5">
+                        <Star className="h-3 w-3 text-red-400" /> Your Core Values
+                      </label>
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        {profileValues.map((val) => (
+                          <span
+                            key={val}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-white/10 text-xs text-neutral-200 border border-white/10 cursor-pointer hover:bg-red-600/20 hover:border-red-500/30 transition-colors"
+                            onClick={() => setLocalValues(profileValues.filter(v => v !== val))}
+                          >
+                            {val}
+                            <X className="h-2.5 w-2.5 opacity-50" />
+                          </span>
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="text"
+                          placeholder="Add a value..."
+                          value={newValueInput}
+                          onChange={(e) => setNewValueInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault()
+                              const val = newValueInput.trim()
+                              if (val && !profileValues.includes(val)) {
+                                setLocalValues([...profileValues, val])
+                                setNewValueInput('')
+                              }
+                            }
+                          }}
+                          className="bg-white/5 border-red-500/30 text-white placeholder:text-neutral-400 text-xs h-8 rounded-md focus-visible:border-red-500 focus-visible:ring-red-500/40 focus-visible:ring-2 transition-all flex-1"
+                          autoComplete="off"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const val = newValueInput.trim()
+                            if (val && !profileValues.includes(val)) {
+                              setLocalValues([...profileValues, val])
+                              setNewValueInput('')
+                            }
+                          }}
+                          className="h-8 w-8 rounded-md bg-white/5 border border-white/10 flex items-center justify-center text-neutral-300 hover:bg-white/10 transition-colors shrink-0"
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <AnimatePresence>
+                      {error && (
+                        <motion.p
+                          initial={{ opacity: 0, y: -5 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -5 }}
+                          className="text-red-400 text-xs text-center font-medium"
+                        >
+                          {error}
+                        </motion.p>
+                      )}
+                    </AnimatePresence>
+
+                    <Button
+                      type="submit"
+                      disabled={loading}
+                      className="w-full h-14 bg-red-600 hover:bg-red-500 active:bg-red-700 text-white font-semibold text-base rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-red-900/40 hover:shadow-red-700/40"
+                    >
+                      {loading ? (
+                        <motion.div
+                          animate={{ rotate: 360 }}
+                          transition={{ duration: 1.4, repeat: Infinity, ease: 'linear' }}
+                          className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full"
+                        />
+                      ) : (
+                        <>
+                          Continue
+                          <ArrowRight className="h-4 w-4 ml-2" />
+                        </>
+                      )}
+                    </Button>
+
+                    <button
+                      type="button"
+                      onClick={() => setStep('setup-code')}
+                      className="w-full text-center text-xs text-neutral-500 hover:text-neutral-300 transition-colors py-2"
+                    >
+                      Skip for now — I&apos;ll complete my profile later
                     </button>
                   </motion.div>
                 </form>

@@ -1,40 +1,89 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 
-// GET /api/user-profile — Get the user's name, OS name, and business profile
+// All profile fields stored in Settings table
+const PROFILE_FIELDS = [
+  'user_name',
+  'os_name',
+  'setup_complete',
+  'business_name',
+  'business_description',
+  'profile_photo',
+  'bio',
+  'location',
+  'phone',
+  'email',
+  'personal_values',
+  'mission_statement',
+] as const
+
+// GET /api/user-profile — Get the user's full profile
 export async function GET() {
   try {
-    const nameSetting = await db.settings.findUnique({ where: { key: 'user_name' } })
-    const osSetting = await db.settings.findUnique({ where: { key: 'os_name' } })
-    const setupSetting = await db.settings.findUnique({ where: { key: 'setup_complete' } })
-    const businessNameSetting = await db.settings.findUnique({ where: { key: 'business_name' } })
-    const businessDescSetting = await db.settings.findUnique({ where: { key: 'business_description' } })
+    const settings = await db.settings.findMany({
+      where: { key: { in: PROFILE_FIELDS as unknown as string[] } },
+    })
 
-    const userName = nameSetting?.value ? JSON.parse(nameSetting.value) : ''
-    const osName = osSetting?.value ? JSON.parse(osSetting.value) : 'MyOS'
-    const isSetupComplete = setupSetting?.value ? JSON.parse(setupSetting.value) : false
-    const businessName = businessNameSetting?.value ? JSON.parse(businessNameSetting.value) : ''
-    const businessDescription = businessDescSetting?.value ? JSON.parse(businessDescSetting.value) : ''
+    const map: Record<string, string> = {}
+    for (const s of settings) {
+      map[s.key] = s.value
+    }
 
-    return NextResponse.json({ userName, osName, isSetupComplete, businessName, businessDescription })
+    const parse = (key: string, fallback: unknown = '') => {
+      try { return map[key] ? JSON.parse(map[key]) : fallback } catch { return fallback }
+    }
+
+    return NextResponse.json({
+      userName: parse('user_name', ''),
+      osName: parse('os_name', 'MyOS'),
+      isSetupComplete: parse('setup_complete', false),
+      businessName: parse('business_name', ''),
+      businessDescription: parse('business_description', ''),
+      profilePhoto: parse('profile_photo', ''),
+      bio: parse('bio', ''),
+      location: parse('location', ''),
+      phone: parse('phone', ''),
+      email: parse('email', ''),
+      personalValues: parse('personal_values', []),
+      missionStatement: parse('mission_statement', ''),
+    })
   } catch (error) {
     console.error('User profile GET error:', error)
-    return NextResponse.json({ userName: '', osName: 'MyOS', isSetupComplete: false, businessName: '', businessDescription: '' })
+    return NextResponse.json({
+      userName: '',
+      osName: 'MyOS',
+      isSetupComplete: false,
+      businessName: '',
+      businessDescription: '',
+      profilePhoto: '',
+      bio: '',
+      location: '',
+      phone: '',
+      email: '',
+      personalValues: [],
+      missionStatement: '',
+    })
   }
 }
 
-// POST /api/user-profile — Set the user's name and/or business profile
+// POST /api/user-profile — Set any profile fields
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { name, businessName, businessDescription } = body
+    const {
+      name,
+      businessName,
+      businessDescription,
+      profilePhoto,
+      bio,
+      location,
+      phone,
+      email,
+      personalValues,
+      missionStatement,
+    } = body
 
-    // At least one field must be provided
-    if (!name && businessName === undefined && businessDescription === undefined) {
-      return NextResponse.json({ error: 'At least one field is required' }, { status: 400 })
-    }
-
-    // Save name if provided
+    // Save name if provided (also generates os_name)
     if (name && typeof name === 'string' && name.trim().length >= 1) {
       const trimmedName = name.trim()
       const osName = `${trimmedName}OS`
@@ -58,38 +107,54 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Save business name if provided
-    if (businessName !== undefined && typeof businessName === 'string') {
+    // Helper to upsert a settings key
+    const upsertField = async (key: string, value: unknown) => {
+      if (value === undefined) return
       await db.settings.upsert({
-        where: { key: 'business_name' },
-        update: { value: JSON.stringify(businessName.trim()) },
-        create: { key: 'business_name', value: JSON.stringify(businessName.trim()) },
+        where: { key },
+        update: { value: JSON.stringify(value) },
+        create: { key, value: JSON.stringify(value) },
       })
     }
 
-    // Save business description if provided
-    if (businessDescription !== undefined && typeof businessDescription === 'string') {
-      await db.settings.upsert({
-        where: { key: 'business_description' },
-        update: { value: JSON.stringify(businessDescription.trim()) },
-        create: { key: 'business_description', value: JSON.stringify(businessDescription.trim()) },
-      })
-    }
+    // Save all optional profile fields
+    if (businessName !== undefined) await upsertField('business_name', typeof businessName === 'string' ? businessName.trim() : businessName)
+    if (businessDescription !== undefined) await upsertField('business_description', typeof businessDescription === 'string' ? businessDescription.trim() : businessDescription)
+    if (profilePhoto !== undefined) await upsertField('profile_photo', profilePhoto)
+    if (bio !== undefined) await upsertField('bio', typeof bio === 'string' ? bio.trim() : bio)
+    if (location !== undefined) await upsertField('location', typeof location === 'string' ? location.trim() : location)
+    if (phone !== undefined) await upsertField('phone', typeof phone === 'string' ? phone.trim() : phone)
+    if (email !== undefined) await upsertField('email', typeof email === 'string' ? email.trim() : email)
+    if (personalValues !== undefined) await upsertField('personal_values', personalValues)
+    if (missionStatement !== undefined) await upsertField('mission_statement', typeof missionStatement === 'string' ? missionStatement.trim() : missionStatement)
 
     // Return updated profile
-    const [nameSetting, osSetting, businessNameSetting, businessDescSetting] = await Promise.all([
-      db.settings.findUnique({ where: { key: 'user_name' } }),
-      db.settings.findUnique({ where: { key: 'os_name' } }),
-      db.settings.findUnique({ where: { key: 'business_name' } }),
-      db.settings.findUnique({ where: { key: 'business_description' } }),
-    ])
+    const settings = await db.settings.findMany({
+      where: { key: { in: PROFILE_FIELDS as unknown as string[] } },
+    })
+
+    const map: Record<string, string> = {}
+    for (const s of settings) {
+      map[s.key] = s.value
+    }
+
+    const parse = (key: string, fallback: unknown = '') => {
+      try { return map[key] ? JSON.parse(map[key]) : fallback } catch { return fallback }
+    }
 
     return NextResponse.json({
       success: true,
-      userName: nameSetting?.value ? JSON.parse(nameSetting.value) : '',
-      osName: osSetting?.value ? JSON.parse(osSetting.value) : 'MyOS',
-      businessName: businessNameSetting?.value ? JSON.parse(businessNameSetting.value) : '',
-      businessDescription: businessDescSetting?.value ? JSON.parse(businessDescSetting.value) : '',
+      userName: parse('user_name', ''),
+      osName: parse('os_name', 'MyOS'),
+      businessName: parse('business_name', ''),
+      businessDescription: parse('business_description', ''),
+      profilePhoto: parse('profile_photo', ''),
+      bio: parse('bio', ''),
+      location: parse('location', ''),
+      phone: parse('phone', ''),
+      email: parse('email', ''),
+      personalValues: parse('personal_values', []),
+      missionStatement: parse('mission_statement', ''),
     })
   } catch (error) {
     console.error('User profile POST error:', error)

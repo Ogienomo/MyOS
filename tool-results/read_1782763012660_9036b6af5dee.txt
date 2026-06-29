@@ -1,0 +1,602 @@
+   301→    </div>
+   302→  )
+   303→}
+   304→
+   305→export function Settings({ open, onOpenChange }: SettingsProps) {
+   306→  const { userSettings, setUserSettings } = useAppStore()
+   307→  const { theme, setTheme } = useTheme()
+   308→  const [currentCode, setCurrentCode] = useState('')
+   309→  const [newCode, setNewCode] = useState('')
+   310→  const [confirmCode, setConfirmCode] = useState('')
+   311→  const [loading, setLoading] = useState(false)
+   312→  const [success, setSuccess] = useState(false)
+   313→  const [error, setError] = useState('')
+   314→  const [settingsLoading, setSettingsLoading] = useState(false)
+   315→  const [localSettings, setLocalSettings] = useState<UserSettings>(userSettings || DEFAULT_SETTINGS)
+   316→  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>(
+   317→    typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'default'
+   318→  )
+   319→  const [activeTab, setActiveTab] = useState('checkins')
+   320→
+   321→  // Google integration state
+   322→  const [googleConnected, setGoogleConnected] = useState(false)
+   323→  const [googleConnectLoading, setGoogleConnectLoading] = useState(false)
+   324→  const [googleError, setGoogleError] = useState('')
+   325→  const [googleSuccess, setGoogleSuccess] = useState('')
+   326→  const [googleEnvConfigured, setGoogleEnvConfigured] = useState<boolean | null>(null)
+   327→  const [syncLoading, setSyncLoading] = useState(false)
+   328→  const [syncResult, setSyncResult] = useState<{ success: boolean; message: string } | null>(null)
+   329→  const [exportLoading, setExportLoading] = useState<string | null>(null)
+   330→  const [storageData, setStorageData] = useState<{
+   331→    tables: Array<{ name: string; icon: string; count: number }>
+   332→    totalRecords: number
+   333→    dbSizeFormatted: string
+   334→    storageInfo: { type: string; description: string; recommendation: string }
+   335→  } | null>(null)
+   336→  const [storageLoading, setStorageLoading] = useState(false)
+   337→
+   338→  // Custom reminders state
+   339→  const [reminders, setReminders] = useState<CustomReminder[]>([])
+   340→  const [remindersLoading, setRemindersLoading] = useState(false)
+   341→  const [showAddReminder, setShowAddReminder] = useState(false)
+   342→  const [newReminder, setNewReminder] = useState({
+   343→    title: '',
+   344→    message: '',
+   345→    time: '09:00',
+   346→    days: [1, 2, 3, 4, 5] as number[], // Weekdays default
+   347→  })
+   348→
+   349→  useEffect(() => {
+   350→    if (open) {
+   351→      fetchSettings()
+   352→      checkGoogleConnection()
+   353→      checkGoogleEnvConfigured()
+   354→      fetchReminders()
+   355→      fetchStorageData()
+   356→    }
+   357→  }, [open])
+   358→
+   359→  // Handle OAuth callback URL params
+   360→  useEffect(() => {
+   361→    if (typeof window === 'undefined') return
+   362→    const params = new URLSearchParams(window.location.search)
+   363→    const googleConnectedParam = params.get('google_connected')
+   364→    const googleErrorParam = params.get('google_error')
+   365→
+   366→    if (googleConnectedParam === 'true') {
+   367→      setGoogleSuccess('Google account connected successfully!')
+   368→      // Clean up URL
+   369→      const url = new URL(window.location.href)
+   370→      url.searchParams.delete('google_connected')
+   371→      url.searchParams.delete('google_error')
+   372→      window.history.replaceState({}, '', url.toString())
+   373→      // Auto-clear after 5s
+   374→      setTimeout(() => setGoogleSuccess(''), 5000)
+   375→    }
+   376→    if (googleErrorParam) {
+   377→      setGoogleError(decodeURIComponent(googleErrorParam))
+   378→      // Clean up URL
+   379→      const url = new URL(window.location.href)
+   380→      url.searchParams.delete('google_connected')
+   381→      url.searchParams.delete('google_error')
+   382→      window.history.replaceState({}, '', url.toString())
+   383→      // Auto-clear after 8s
+   384→      setTimeout(() => setGoogleError(''), 8000)
+   385→    }
+   386→  }, [])
+   387→
+   388→  const fetchSettings = async () => {
+   389→    try {
+   390→      const res = await fetch('/api/settings')
+   391→      const data = await res.json()
+   392→      if (data.settings) {
+   393→        setLocalSettings(data.settings)
+   394→        setUserSettings(data.settings)
+   395→      }
+   396→    } catch (err) {
+   397→      console.error('Failed to fetch settings:', err)
+   398→    }
+   399→  }
+   400→
+   401→  const checkGoogleConnection = useCallback(async () => {
+   402→    try {
+   403→      const res = await fetch('/api/google/calendar')
+   404→      if (res.ok) {
+   405→        setGoogleConnected(true)
+   406→      } else {
+   407→        setGoogleConnected(false)
+   408→      }
+   409→    } catch {
+   410→      setGoogleConnected(false)
+   411→    }
+   412→  }, [])
+   413→
+   414→  const checkGoogleEnvConfigured = useCallback(async () => {
+   415→    try {
+   416→      const res = await fetch('/api/google/auth-url')
+   417→      if (res.ok) {
+   418→        const data = await res.json()
+   419→        setGoogleEnvConfigured(!!data.authUrl)
+   420→      } else {
+   421→        const data = await res.json().catch(() => ({}))
+   422→        setGoogleEnvConfigured(false)
+   423→      }
+   424→    } catch {
+   425→      setGoogleEnvConfigured(false)
+   426→    }
+   427→  }, [])
+   428→
+   429→  const resetForm = () => {
+   430→    setCurrentCode('')
+   431→    setNewCode('')
+   432→    setConfirmCode('')
+   433→    setLoading(false)
+   434→    setSuccess(false)
+   435→    setError('')
+   436→  }
+   437→
+   438→  const handleClose = (isOpen: boolean) => {
+   439→    if (!isOpen) {
+   440→      resetForm()
+   441→    }
+   442→    onOpenChange(isOpen)
+   443→  }
+   444→
+   445→  const handleSubmit = async (e: React.FormEvent) => {
+   446→    e.preventDefault()
+   447→    setError('')
+   448→
+   449→    if (!currentCode.trim()) { setError('Current access code is required'); return }
+   450→    if (!newCode.trim()) { setError('New access code is required'); return }
+   451→    if (newCode.length < 4) { setError('New access code must be at least 4 characters'); return }
+   452→    if (newCode !== confirmCode) { setError('New codes do not match'); return }
+   453→    if (currentCode === newCode) { setError('New code must be different from current code'); return }
+   454→
+   455→    setLoading(true)
+   456→    try {
+   457→      const res = await fetch('/api/auth', {
+   458→        method: 'PATCH',
+   459→        headers: { 'Content-Type': 'application/json' },
+   460→        body: JSON.stringify({ currentCode: currentCode.trim(), newCode: newCode.trim() }),
+   461→      })
+   462→      const data = await res.json()
+   463→      if (res.ok && data.success) {
+   464→        setSuccess(true)
+   465→        setTimeout(() => { handleClose(false) }, 1500)
+   466→      } else {
+   467→        setError(data.error || 'Failed to update access code')
+   468→      }
+   469→    } catch {
+   470→      setError('Connection error. Please try again.')
+   471→    } finally {
+   472→      setLoading(false)
+   473→    }
+   474→  }
+   475→
+   476→  const saveSettings = async (newSettings: UserSettings) => {
+   477→    setSettingsLoading(true)
+   478→    try {
+   479→      const res = await fetch('/api/settings', {
+   480→        method: 'POST',
+   481→        headers: { 'Content-Type': 'application/json' },
+   482→        body: JSON.stringify({ settings: newSettings }),
+   483→      })
+   484→      const data = await res.json()
+   485→      if (data.success) {
+   486→        setLocalSettings(data.settings)
+   487→        setUserSettings(data.settings)
+   488→      }
+   489→    } catch (err) {
+   490→      console.error('Failed to save settings:', err)
+   491→    } finally {
+   492→      setSettingsLoading(false)
+   493→    }
+   494→  }
+   495→
+   496→  const updateSetting = (key: string, value: boolean | number | string) => {
+   497→    const updated = { ...localSettings, [key]: value }
+   498→    setLocalSettings(updated)
+   499→    saveSettings(updated)
+   500→  }
+   501→
+   502→  const updateCheckInWindow = (key: string, value: boolean | number | string) => {
+   503→    const updated = {
+   504→      ...localSettings,
+   505→      checkInWindows: { ...localSettings.checkInWindows, [key]: value },
+   506→    }
+   507→    setLocalSettings(updated)
+   508→    saveSettings(updated)
+   509→  }
+   510→
+   511→  const handleRequestNotifications = async () => {
+   512→    if (typeof window === 'undefined' || !('Notification' in window)) {
+   513→      return
+   514→    }
+   515→    const permission = await Notification.requestPermission()
+   516→    setNotificationPermission(permission)
+   517→    if (permission === 'granted') {
+   518→      new Notification('MyOS Notifications Enabled', {
+   519→        body: 'You will now receive check-in reminders and alerts.',
+   520→        icon: '/logo.svg',
+   521→      })
+   522→    }
+   523→  }
+   524→
+   525→  // Google integration handlers
+   526→  const handleConnectGoogle = async () => {
+   527→    setGoogleError('')
+   528→    setGoogleConnectLoading(true)
+   529→    try {
+   530→      const res = await fetch('/api/google/auth-url')
+   531→      const data = await res.json()
+   532→      if (data.authUrl) {
+   533→        window.location.href = data.authUrl
+   534→      } else if (data.error) {
+   535→        console.error('Google auth URL error:', data.error)
+   536→        setGoogleError(data.error)
+   537→        setGoogleEnvConfigured(false)
+   538→        setTimeout(() => setGoogleError(''), 8000)
+   539→      }
+   540→    } catch (err) {
+   541→      console.error('Failed to get Google auth URL:', err)
+   542→      setGoogleError('Failed to connect Google. Please check your network connection and try again.')
+   543→      setTimeout(() => setGoogleError(''), 8000)
+   544→    } finally {
+   545→      setGoogleConnectLoading(false)
+   546→    }
+   547→  }
+   548→
+   549→  const handleDisconnectGoogle = async () => {
+   550→    try {
+   551→      const updated = {
+   552→        ...localSettings,
+   553→        googleCalendarEnabled: false,
+   554→        googleEmailReminders: false,
+   555→      }
+   556→      setLocalSettings(updated)
+   557→      await saveSettings(updated)
+   558→      setGoogleConnected(false)
+   559→    } catch (err) {
+   560→      console.error('Failed to disconnect Google:', err)
+   561→    }
+   562→  }
+   563→
+   564→  const handleSyncCalendarReminders = async (enabled: boolean) => {
+   565→    updateSetting('googleCalendarEnabled', enabled)
+   566→    if (enabled && googleConnected) {
+   567→      setSyncLoading(true)
+   568→      setSyncResult(null)
+   569→      try {
+   570→        const res = await fetch('/api/google/sync-calendar', {
+   571→          method: 'POST',
+   572→          headers: { 'Content-Type': 'application/json' },
+   573→          body: JSON.stringify({
+   574→            checkInTimes: {
+   575→              morningTime: localSettings.checkInWindows.morningTime || '05:00',
+   576→              middayTime: '12:00',
+   577→              eveningTime: localSettings.checkInWindows.eveningTime || '20:30',
+   578→              fridayTime: '16:30',
+   579→              sundayTime: '18:00',
+   580→            },
+   581→          }),
+   582→        })
+   583→        const data = await res.json()
+   584→        if (res.ok && data.success) {
+   585→          setSyncResult({ success: true, message: data.message })
+   586→        } else {
+   587→          setSyncResult({ success: false, message: data.error || 'Failed to sync calendar' })
+   588→        }
+   589→      } catch {
+   590→        setSyncResult({ success: false, message: 'Network error. Please try again.' })
+   591→      } finally {
+   592→        setSyncLoading(false)
+   593→        setTimeout(() => setSyncResult(null), 5000)
+   594→      }
+   595→    }
+   596→  }
+   597→
+   598→  // Custom reminder handlers
+   599→  const fetchReminders = useCallback(async () => {
+   600→    setRemindersLoading(true)
+   601→    try {
+   602→      const res = await fetch('/api/notifications/reminders')
+   603→      if (res.ok) {
+   604→        const data = await res.json()
+   605→        setReminders(data)
+   606→      }
+   607→    } catch {
+   608→      // Silently fail
+   609→    } finally {
+   610→      setRemindersLoading(false)
+   611→    }
+   612→  }, [])
+   613→
+   614→  const fetchStorageData = useCallback(async () => {
+   615→    setStorageLoading(true)
+   616→    try {
+   617→      const res = await fetch('/api/storage')
+   618→      if (res.ok) {
+   619→        const data = await res.json()
+   620→        setStorageData(data)
+   621→      }
+   622→    } catch {
+   623→      // Silently fail
+   624→    } finally {
+   625→      setStorageLoading(false)
+   626→    }
+   627→  }, [])
+   628→
+   629→  const handleCreateReminder = async () => {
+   630→    if (!newReminder.title || newReminder.days.length === 0) return
+   631→    try {
+   632→      const res = await fetch('/api/notifications/reminders', {
+   633→        method: 'POST',
+   634→        headers: { 'Content-Type': 'application/json' },
+   635→        body: JSON.stringify({
+   636→          title: newReminder.title,
+   637→          message: newReminder.message,
+   638→          time: newReminder.time,
+   639→          days: newReminder.days,
+   640→        }),
+   641→      })
+   642→      if (res.ok) {
+   643→        setShowAddReminder(false)
+   644→        setNewReminder({ title: '', message: '', time: '09:00', days: [1, 2, 3, 4, 5] })
+   645→        fetchReminders()
+   646→      }
+   647→    } catch {
+   648→      // Silently fail
+   649→    }
+   650→  }
+   651→
+   652→  const handleToggleReminder = async (id: string, active: boolean) => {
+   653→    try {
+   654→      const res = await fetch('/api/notifications/reminders', {
+   655→        method: 'PUT',
+   656→        headers: { 'Content-Type': 'application/json' },
+   657→        body: JSON.stringify({ id, active }),
+   658→      })
+   659→      if (res.ok) {
+   660→        setReminders(prev => prev.map(r => r.id === id ? { ...r, active } : r))
+   661→      }
+   662→    } catch {
+   663→      // Silently fail
+   664→    }
+   665→  }
+   666→
+   667→  const handleDeleteReminder = async (id: string) => {
+   668→    try {
+   669→      const res = await fetch(`/api/notifications/reminders?id=${id}`, { method: 'DELETE' })
+   670→      if (res.ok) {
+   671→        setReminders(prev => prev.filter(r => r.id !== id))
+   672→      }
+   673→    } catch {
+   674→      // Silently fail
+   675→    }
+   676→  }
+   677→
+   678→  const exportOptions = [
+   679→    { type: 'finances', label: 'Finances', desc: 'Income, expenses & categories', icon: <Wallet className="h-4 w-4 text-red-600" /> },
+   680→    { type: 'journal', label: 'Journal', desc: 'Entries, moods & reflections', icon: <BookOpen className="h-4 w-4 text-rose-600" /> },
+   681→    { type: 'goals', label: 'Goals', desc: 'Goals, tasks & progress', icon: <Target className="h-4 w-4 text-red-600" /> },
+   682→    { type: 'memories', label: 'Memories', desc: 'Wins, patterns & insights', icon: <Brain className="h-4 w-4 text-red-700" /> },
+   683→    { type: 'scores', label: 'Scores', desc: 'Life area scores over time', icon: <BarChart3 className="h-4 w-4 text-red-600" /> },
+   684→    { type: 'checkins', label: 'Check-ins', desc: 'Morning & evening check-ins', icon: <ClipboardCheck className="h-4 w-4 text-red-600" /> },
+   685→    { type: 'all', label: 'All Data', desc: 'Complete export of everything', icon: <Database className="h-4 w-4 text-neutral-600" /> },
+   686→  ]
+   687→
+   688→  const handleExport = async (type: string, format: 'csv' | 'json') => {
+   689→    try {
+   690→      setExportLoading(`${type}-${format}`)
+   691→      const res = await fetch(`/api/export?type=${type}&format=${format}`)
+   692→      const blob = await res.blob()
+   693→      const url = URL.createObjectURL(blob)
+   694→      const a = document.createElement('a')
+   695→      a.href = url
+   696→      a.download = `myos-${type}-${new Date().toISOString().split('T')[0]}.${format}`
+   697→      document.body.appendChild(a)
+   698→      a.click()
+   699→      document.body.removeChild(a)
+   700→      URL.revokeObjectURL(url)
+   701→    } catch (err) {
+   702→      console.error('Export failed:', err)
+   703→    } finally {
+   704→      setExportLoading(null)
+   705→    }
+   706→  }
+   707→
+   708→  return (
+   709→    <Dialog open={open} onOpenChange={handleClose}>
+   710→      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto w-[95vw] sm:w-auto rounded-t-2xl sm:rounded-2xl">
+   711→        <DialogHeader>
+   712→          <DialogTitle className="flex items-center gap-2">
+   713→            <Shield className="h-5 w-5 text-red-600" />
+   714→            Settings
+   715→          </DialogTitle>
+   716→          <DialogDescription>
+   717→            Configure your MyOS experience
+   718→          </DialogDescription>
+   719→        </DialogHeader>
+   720→
+   721→        {settingsLoading && (
+   722→          <div className="flex items-center gap-2 text-xs text-neutral-500 py-1">
+   723→            <Loader2 className="h-3 w-3 animate-spin text-red-600" />
+   724→            Saving...
+   725→          </div>
+   726→        )}
+   727→
+   728→        {/* Quick schedule status banner */}
+   729→        {localSettings && (
+   730→          <div className="flex items-center gap-3 p-3 rounded-xl bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-100 dark:border-neutral-800">
+   731→            <AlarmClock className="h-4 w-4 text-red-600 shrink-0" />
+   732→            <div className="flex-1 min-w-0">
+   733→              <p className="text-[11px] font-semibold text-neutral-700 dark:text-neutral-300">Check-in Schedule</p>
+   734→              <p className="text-[10px] text-neutral-500 dark:text-neutral-400">
+   735→                Morning {localSettings.checkInWindows.morningEnabled ? `@ ${localSettings.checkInWindows.morningTime}` : '(off)'} &bull; Evening {localSettings.checkInWindows.eveningEnabled ? `@ ${localSettings.checkInWindows.eveningTime}` : '(off)'}{localSettings.checkInWindows.strictMode ? ' · Strict ON' : ''}
+   736→              </p>
+   737→            </div>
+   738→            <button onClick={() => setActiveTab('checkins')} className="text-[10px] text-red-600 hover:text-red-700 font-medium shrink-0">Edit</button>
+   739→          </div>
+   740→        )}
+   741→
+   742→        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+   743→          <TabsList className="w-full overflow-x-auto scrollbar-hide flex sm:grid sm:grid-cols-7 h-auto gap-0 p-1 -mx-1 px-1 sm:mx-0 sm:px-0">
+   744→            <TabsTrigger value="checkins" className="text-[10px] sm:text-[11px] px-2 sm:px-2.5 py-2 sm:py-2.5 shrink-0 whitespace-nowrap data-[state=active]:shadow-[inset_0_-2px_0_0_rgba(220,38,38,1)] data-[state=active]:border-b-2 data-[state=active]:border-red-600">Check-ins</TabsTrigger>
+   745→            <TabsTrigger value="profile" className="text-[10px] sm:text-[11px] px-2 sm:px-2.5 py-2 sm:py-2.5 shrink-0 whitespace-nowrap data-[state=active]:shadow-[inset_0_-2px_0_0_rgba(220,38,38,1)] data-[state=active]:border-b-2 data-[state=active]:border-red-600">Profile</TabsTrigger>
+   746→            <TabsTrigger value="appearance" className="text-[10px] sm:text-[11px] px-2 sm:px-2.5 py-2 sm:py-2.5 shrink-0 whitespace-nowrap data-[state=active]:shadow-[inset_0_-2px_0_0_rgba(220,38,38,1)] data-[state=active]:border-b-2 data-[state=active]:border-red-600">Appearance</TabsTrigger>
+   747→            <TabsTrigger value="features" className="text-[10px] sm:text-[11px] px-2 sm:px-2.5 py-2 sm:py-2.5 shrink-0 whitespace-nowrap data-[state=active]:shadow-[inset_0_-2px_0_0_rgba(220,38,38,1)] data-[state=active]:border-b-2 data-[state=active]:border-red-600">Features</TabsTrigger>
+   748→            <TabsTrigger value="integrations" className="text-[10px] sm:text-[11px] px-2 sm:px-2.5 py-2 sm:py-2.5 shrink-0 whitespace-nowrap data-[state=active]:shadow-[inset_0_-2px_0_0_rgba(220,38,38,1)] data-[state=active]:border-b-2 data-[state=active]:border-red-600">Integrations</TabsTrigger>
+   749→            <TabsTrigger value="data" className="text-[10px] sm:text-[11px] px-2 sm:px-2.5 py-2 sm:py-2.5 shrink-0 whitespace-nowrap data-[state=active]:shadow-[inset_0_-2px_0_0_rgba(220,38,38,1)] data-[state=active]:border-b-2 data-[state=active]:border-red-600">Data</TabsTrigger>
+   750→            <TabsTrigger value="security" className="text-[10px] sm:text-[11px] px-2 sm:px-2.5 py-2 sm:py-2.5 shrink-0 whitespace-nowrap data-[state=active]:shadow-[inset_0_-2px_0_0_rgba(220,38,38,1)] data-[state=active]:border-b-2 data-[state=active]:border-red-600">Security</TabsTrigger>
+   751→          </TabsList>
+   752→
+   753→          <AnimatePresence mode="wait">
+   754→            {/* Profile Tab */}
+   755→            {activeTab === 'profile' && (
+   756→              <TabsContent value="profile" className="mt-4" forceMount>
+   757→                <motion.div
+   758→                  key="profile-content"
+   759→                  initial={{ opacity: 0, y: 10 }}
+   760→                  animate={{ opacity: 1, y: 0 }}
+   761→                  transition={{ duration: 0.25 }}
+   762→                  className="space-y-6"
+   763→                >
+   764→                  <ProfileSettings />
+   765→                </motion.div>
+   766→              </TabsContent>
+   767→            )}
+   768→
+   769→            {/* Check-in Windows Tab */}
+   770→            {activeTab === 'checkins' && (
+   771→              <TabsContent value="checkins" className="mt-4 space-y-4" forceMount>
+   772→                <motion.div
+   773→                  key="checkins-content"
+   774→                  variants={tabContentVariants}
+   775→                  initial="hidden"
+   776→                  animate="visible"
+   777→                  exit="exit"
+   778→                  className="space-y-4"
+   779→                >
+   780→                  {/* Morning Check-in */}
+   781→                  <div className="space-y-3 p-4 rounded-lg border border-neutral-200 dark:border-neutral-700">
+   782→                    <div className="flex items-center justify-between">
+   783→                      <div className="flex items-center gap-2">
+   784→                        <Clock className="h-4 w-4 text-red-500" />
+   785→                        <span className="text-sm font-medium text-neutral-800 dark:text-neutral-200">Morning Check-in</span>
+   786→                      </div>
+   787→                      <Switch
+   788→                        checked={localSettings.checkInWindows.morningEnabled}
+   789→                        onCheckedChange={(v) => updateCheckInWindow('morningEnabled', v)}
+   790→                      />
+   791→                    </div>
+   792→                    {localSettings.checkInWindows.morningEnabled && (
+   793→                      <div className="space-y-2">
+   794→                        <div className="flex items-center gap-2">
+   795→                          <Label htmlFor="morning-time" className="text-xs text-neutral-500 w-20">Time</Label>
+   796→                          <Input
+   797→                            id="morning-time"
+   798→                            type="time"
+   799→                            value={localSettings.checkInWindows.morningTime}
+   800→                            onChange={(e) => updateCheckInWindow('morningTime', e.target.value)}
+   801→                            className="text-sm h-8"
+   802→                          />
+   803→                        </div>
+   804→                      </div>
+   805→                    )}
+   806→                  </div>
+   807→
+   808→                  {/* Evening Check-in */}
+   809→                  <div className="space-y-3 p-4 rounded-lg border border-neutral-200 dark:border-neutral-700">
+   810→                    <div className="flex items-center justify-between">
+   811→                      <div className="flex items-center gap-2">
+   812→                        <Clock className="h-4 w-4 text-red-500" />
+   813→                        <span className="text-sm font-medium text-neutral-800 dark:text-neutral-200">Evening Check-in</span>
+   814→                      </div>
+   815→                      <Switch
+   816→                        checked={localSettings.checkInWindows.eveningEnabled}
+   817→                        onCheckedChange={(v) => updateCheckInWindow('eveningEnabled', v)}
+   818→                      />
+   819→                    </div>
+   820→                    {localSettings.checkInWindows.eveningEnabled && (
+   821→                      <div className="space-y-2">
+   822→                        <div className="flex items-center gap-2">
+   823→                          <Label htmlFor="evening-time" className="text-xs text-neutral-500 w-20">Time</Label>
+   824→                          <Input
+   825→                            id="evening-time"
+   826→                            type="time"
+   827→                            value={localSettings.checkInWindows.eveningTime}
+   828→                            onChange={(e) => updateCheckInWindow('eveningTime', e.target.value)}
+   829→                            className="text-sm h-8"
+   830→                          />
+   831→                        </div>
+   832→                      </div>
+   833→                    )}
+   834→                  </div>
+   835→
+   836→                  {/* Strict Mode */}
+   837→                  <div className="flex items-center justify-between p-4 rounded-lg border border-neutral-200 dark:border-neutral-700">
+   838→                    <div>
+   839→                      <div className="flex items-center gap-2">
+   840→                        <Lock className="h-4 w-4 text-red-500" />
+   841→                        <span className="text-sm font-medium text-neutral-800 dark:text-neutral-200">Strict Mode</span>
+   842→                      </div>
+   843→                      <p className="text-xs leading-relaxed text-neutral-400 dark:text-neutral-500 mt-1">Only allow check-ins within the scheduled window</p>
+   844→                    </div>
+   845→                    <Switch
+   846→                      checked={localSettings.checkInWindows.strictMode}
+   847→                      onCheckedChange={(v) => updateCheckInWindow('strictMode', v)}
+   848→                    />
+   849→                  </div>
+   850→
+   851→                  {/* Window Minutes */}
+   852→                  <div className="p-4 rounded-lg border border-neutral-200 dark:border-neutral-700">
+   853→                    <Label className="text-xs text-neutral-500 dark:text-neutral-400">Check-in window (minutes before/after)</Label>
+   854→                    <Input
+   855→                      type="number"
+   856→                      min={5}
+   857→                      max={180}
+   858→                      value={localSettings.checkInWindows.windowMinutes}
+   859→                      onChange={(e) => updateCheckInWindow('windowMinutes', parseInt(e.target.value) || 60)}
+   860→                      className="text-sm h-8 mt-1"
+   861→                    />
+   862→                  </div>
+   863→
+   864→                  {/* Browser Notifications */}
+   865→                  <div className="space-y-3 p-4 rounded-lg border border-neutral-200 dark:border-neutral-700">
+   866→                    <div className="flex items-center justify-between">
+   867→                      <div className="flex items-center gap-2">
+   868→                        <Bell className="h-4 w-4 text-red-500" />
+   869→                        <span className="text-sm font-medium text-neutral-800 dark:text-neutral-200">Browser Notifications</span>
+   870→                      </div>
+   871→                      <Button
+   872→                        size="sm"
+   873→                        variant="outline"
+   874→                        className="text-xs h-7 sm:h-8 sm:text-sm"
+   875→                        onClick={handleRequestNotifications}
+   876→                        disabled={notificationPermission === 'denied'}
+   877→                      >
+   878→                        {notificationPermission === 'granted' ? '✓ Enabled' : notificationPermission === 'denied' ? 'Blocked' : 'Enable'}
+   879→                      </Button>
+   880→                    </div>
+   881→                    {notificationPermission === 'granted' && (
+   882→                      <div className="space-y-2 pl-6">
+   883→                        <div className="flex items-center justify-between">
+   884→                          <span className="text-xs text-neutral-600 dark:text-neutral-400">Morning reminder</span>
+   885→                          <Switch
+   886→                            checked={localSettings.morningReminderEnabled ?? true}
+   887→                            onCheckedChange={(v) => updateSetting('morningReminderEnabled', v)}
+   888→                          />
+   889→                        </div>
+   890→                        <div className="flex items-center justify-between">
+   891→                          <span className="text-xs text-neutral-600 dark:text-neutral-400">Evening reminder</span>
+   892→                          <Switch
+   893→                            checked={localSettings.eveningReminderEnabled ?? true}
+   894→                            onCheckedChange={(v) => updateSetting('eveningReminderEnabled', v)}
+   895→                          />
+   896→                        </div>
+   897→                        <div className="flex items-center justify-between">
+   898→                          <span className="text-xs text-neutral-600 dark:text-neutral-400">Drift alerts</span>
+   899→                          <Switch
+   900→                            checked={localSettings.driftAlertNotifications ?? true}
+
+[showing lines 301-900 of 1601; use offset=901 with limit to continue reading]

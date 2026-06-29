@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Shield, Loader2, CheckCircle2, AlertCircle, Clock, Bell, Mic, Camera, Lock, Sun, Moon, Monitor, Link2, Unlink, Mail, Calendar, RefreshCw, Key, Download, Wallet, BookOpen, Target, Brain, BarChart3, ClipboardCheck, Database, Plus, Trash2, AlarmClock, User, Building2 } from 'lucide-react'
+import { Shield, Loader2, CheckCircle2, AlertCircle, Clock, Bell, Mic, Camera, Lock, Sun, Moon, Monitor, Link2, Unlink, Mail, Calendar, RefreshCw, Key, Download, Wallet, BookOpen, Target, Brain, BarChart3, ClipboardCheck, Database, Plus, Trash2, AlarmClock, User, Building2, MapPin, Phone, Star, X as XIcon } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -177,12 +177,51 @@ function DangerZoneSection() {
 }
 
 function ProfileSettings() {
-  const { userName, businessName, businessDescription, setUserName, setBusinessName, setBusinessDescription, osName } = useAppStore()
+  const {
+    userName, businessName, businessDescription, profilePhoto, bio, location, phone, email, personalValues, missionStatement,
+    setUserName, setBusinessName, setBusinessDescription, setProfilePhoto, setBio, setLocation, setPhone, setEmail, setPersonalValues, setMissionStatement,
+    osName,
+  } = useAppStore()
   const [localName, setLocalName] = useState(userName)
   const [localBizName, setLocalBizName] = useState(businessName)
   const [localBizDesc, setLocalBizDesc] = useState(businessDescription)
+  const [localPhoto, setLocalPhoto] = useState(profilePhoto)
+  const [localBio, setLocalBio] = useState(bio)
+  const [localLocation, setLocalLocation] = useState(location)
+  const [localPhone, setLocalPhone] = useState(phone)
+  const [localEmail, setLocalEmail] = useState(email)
+  const [localValues, setLocalValues] = useState<string[]>(personalValues.length > 0 ? personalValues : ['Purpose', 'Growth', 'Integrity', 'Discipline', 'Excellence', 'Service', 'Stewardship', 'Joy'])
+  const [localMission, setLocalMission] = useState(missionStatement)
+  const [newValueInput, setNewValueInput] = useState('')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const fileInputRef = useState<HTMLInputElement | null>(null)
+
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 2 * 1024 * 1024) {
+      alert('Image must be under 2MB')
+      return
+    }
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      setLocalPhoto(reader.result as string)
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const handleAddValue = () => {
+    const val = newValueInput.trim()
+    if (val && !localValues.includes(val)) {
+      setLocalValues([...localValues, val])
+      setNewValueInput('')
+    }
+  }
+
+  const handleRemoveValue = (val: string) => {
+    setLocalValues(localValues.filter(v => v !== val))
+  }
 
   const handleSave = async () => {
     setSaving(true)
@@ -194,6 +233,13 @@ function ProfileSettings() {
           name: localName,
           businessName: localBizName,
           businessDescription: localBizDesc,
+          profilePhoto: localPhoto,
+          bio: localBio,
+          location: localLocation,
+          phone: localPhone,
+          email: localEmail,
+          personalValues: localValues,
+          missionStatement: localMission,
         }),
       })
       const data = await res.json()
@@ -201,6 +247,13 @@ function ProfileSettings() {
         setUserName(data.userName || localName)
         setBusinessName(data.businessName || localBizName)
         setBusinessDescription(data.businessDescription || localBizDesc)
+        setProfilePhoto(data.profilePhoto || localPhoto)
+        setBio(data.bio || localBio)
+        setLocation(data.location || localLocation)
+        setPhone(data.phone || localPhone)
+        setEmail(data.email || localEmail)
+        setPersonalValues(data.personalValues || localValues)
+        setMissionStatement(data.missionStatement || localMission)
         // Sync to localStorage for dynamic labels
         if (data.businessName) localStorage.setItem('myos-business-name', data.businessName)
         else localStorage.removeItem('myos-business-name')
@@ -218,8 +271,52 @@ function ProfileSettings() {
 
   return (
     <div className="space-y-6">
-      {/* Personal Info */}
+      {/* Profile Photo */}
       <div>
+        <h3 className="text-sm font-medium text-neutral-800 dark:text-neutral-200 mb-3 flex items-center gap-2">
+          <Camera className="h-4 w-4 text-red-500" />
+          Profile Photo
+        </h3>
+        <div className="flex items-center gap-4">
+          <div className="w-16 h-16 rounded-2xl overflow-hidden border-2 border-neutral-200 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center relative group">
+            {localPhoto ? (
+              <img src={localPhoto} alt="Profile" className="w-full h-full object-cover" />
+            ) : (
+              <User className="h-6 w-6 text-neutral-400" />
+            )}
+          </div>
+          <div>
+            <input
+              ref={(el) => { (fileInputRef as React.MutableRefObject<HTMLInputElement | null>).current = el }}
+              type="file"
+              accept="image/*"
+              onChange={handlePhotoUpload}
+              className="hidden"
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs gap-1.5"
+              onClick={() => (fileInputRef as React.MutableRefObject<HTMLInputElement | null>).current?.click()}
+            >
+              <Camera className="h-3.5 w-3.5" /> {localPhoto ? 'Change Photo' : 'Upload Photo'}
+            </Button>
+            {localPhoto && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs text-neutral-400 ml-2"
+                onClick={() => setLocalPhoto('')}
+              >
+                Remove
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Personal Info */}
+      <div className="border-t border-neutral-100 dark:border-neutral-800 pt-6">
         <h3 className="text-sm font-medium text-neutral-800 dark:text-neutral-200 mb-3 flex items-center gap-2">
           <User className="h-4 w-4 text-red-500" />
           Personal Info
@@ -235,6 +332,106 @@ function ProfileSettings() {
             />
             <p className="text-[10px] text-neutral-400 mt-1">Your OS is called <strong>{localName ? `${localName}OS` : 'MyOS'}</strong></p>
           </div>
+          <div>
+            <Label className="text-xs text-neutral-600 dark:text-neutral-400 mb-1.5 block">About You</Label>
+            <textarea
+              value={localBio}
+              onChange={(e) => setLocalBio(e.target.value)}
+              placeholder="A brief description about yourself — your journey, passions, what drives you..."
+              rows={3}
+              className="flex w-full rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm placeholder:text-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40 focus-visible:border-red-500 transition-all resize-none"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs text-neutral-600 dark:text-neutral-400 mb-1.5 block flex items-center gap-1"><MapPin className="h-3 w-3" /> Location</Label>
+              <Input
+                value={localLocation}
+                onChange={(e) => setLocalLocation(e.target.value)}
+                placeholder="e.g., Lagos, Nigeria"
+                className="text-sm"
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-neutral-600 dark:text-neutral-400 mb-1.5 block flex items-center gap-1"><Phone className="h-3 w-3" /> Phone</Label>
+              <Input
+                value={localPhone}
+                onChange={(e) => setLocalPhone(e.target.value)}
+                placeholder="e.g., +234 800..."
+                className="text-sm"
+              />
+            </div>
+          </div>
+          <div>
+            <Label className="text-xs text-neutral-600 dark:text-neutral-400 mb-1.5 block flex items-center gap-1"><Mail className="h-3 w-3" /> Email</Label>
+            <Input
+              value={localEmail}
+              onChange={(e) => setLocalEmail(e.target.value)}
+              placeholder="you@example.com"
+              className="text-sm"
+              type="email"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Mission Statement */}
+      <div className="border-t border-neutral-100 dark:border-neutral-800 pt-6">
+        <h3 className="text-sm font-medium text-neutral-800 dark:text-neutral-200 mb-3 flex items-center gap-2">
+          <Target className="h-4 w-4 text-red-500" />
+          Mission Statement
+        </h3>
+        <textarea
+          value={localMission}
+          onChange={(e) => setLocalMission(e.target.value)}
+          placeholder="What is your personal mission? What were you put on this earth to do?"
+          rows={3}
+          className="flex w-full rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm placeholder:text-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40 focus-visible:border-red-500 transition-all resize-none"
+        />
+      </div>
+
+      {/* Core Values */}
+      <div className="border-t border-neutral-100 dark:border-neutral-800 pt-6">
+        <h3 className="text-sm font-medium text-neutral-800 dark:text-neutral-200 mb-3 flex items-center gap-2">
+          <Star className="h-4 w-4 text-red-500" />
+          Core Values
+        </h3>
+        <p className="text-xs text-neutral-500 dark:text-neutral-400 mb-3">Add or remove values that define who you are and what you stand for.</p>
+        <div className="flex flex-wrap gap-2 mb-3">
+          {localValues.map((value) => (
+            <Badge
+              key={value}
+              variant="secondary"
+              className="text-xs py-1 px-2.5 bg-neutral-50 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border border-neutral-200 dark:border-neutral-700 cursor-pointer hover:bg-red-50 dark:hover:bg-red-950/30 hover:border-red-200 dark:hover:border-red-800 hover:text-red-700 dark:hover:text-red-400 transition-colors group"
+              onClick={() => handleRemoveValue(value)}
+            >
+              {value}
+              <XIcon className="h-2.5 w-2.5 ml-1 opacity-50 group-hover:opacity-100" />
+            </Badge>
+          ))}
+        </div>
+        <div className="flex items-center gap-2">
+          <Input
+            value={newValueInput}
+            onChange={(e) => setNewValueInput(e.target.value)}
+            placeholder="Add a value..."
+            className="text-sm flex-1"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                handleAddValue()
+              }
+            }}
+          />
+          <Button
+            onClick={handleAddValue}
+            variant="outline"
+            size="sm"
+            className="text-xs gap-1"
+            disabled={!newValueInput.trim()}
+          >
+            <Plus className="h-3.5 w-3.5" /> Add
+          </Button>
         </div>
       </div>
 

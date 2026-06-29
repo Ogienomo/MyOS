@@ -205,10 +205,24 @@ interface AppState {
   osName: string
   businessName: string
   businessDescription: string
+  profilePhoto: string
+  bio: string
+  location: string
+  phone: string
+  email: string
+  personalValues: string[]
+  missionStatement: string
   setUserName: (name: string) => void
   setOsName: (name: string) => void
   setBusinessName: (name: string) => void
   setBusinessDescription: (desc: string) => void
+  setProfilePhoto: (photo: string) => void
+  setBio: (bio: string) => void
+  setLocation: (location: string) => void
+  setPhone: (phone: string) => void
+  setEmail: (email: string) => void
+  setPersonalValues: (values: string[]) => void
+  setMissionStatement: (mission: string) => void
   isSetupComplete: boolean
   setIsSetupComplete: (val: boolean) => void
 
@@ -338,10 +352,24 @@ export const useAppStore = create<AppState>((set) => ({
   osName: 'MyOS',
   businessName: '',
   businessDescription: '',
+  profilePhoto: '',
+  bio: '',
+  location: '',
+  phone: '',
+  email: '',
+  personalValues: [],
+  missionStatement: '',
   setUserName: (name) => set({ userName: name, osName: name ? `${name}OS` : 'MyOS' }),
   setOsName: (name) => set({ osName: name }),
   setBusinessName: (name) => set({ businessName: name }),
   setBusinessDescription: (desc) => set({ businessDescription: desc }),
+  setProfilePhoto: (photo) => set({ profilePhoto: photo }),
+  setBio: (bio) => set({ bio: bio }),
+  setLocation: (location) => set({ location: location }),
+  setPhone: (phone) => set({ phone: phone }),
+  setEmail: (email) => set({ email: email }),
+  setPersonalValues: (values) => set({ personalValues: values }),
+  setMissionStatement: (mission) => set({ missionStatement: mission }),
   isSetupComplete: false,
   setIsSetupComplete: (val) => set({ isSetupComplete: val }),
 
