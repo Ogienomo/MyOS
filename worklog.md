@@ -117,3 +117,29 @@ Stage Summary:
 - The business name appears dynamically in sidebar, life areas, dashboard, AI coach prompts, etc.
 - Internal DB key remains `havilah` for backward compatibility (no migration needed)
 - Build passes successfully with no errors
+
+---
+Task ID: about-profile-page
+Agent: Main Agent
+Task: Fix About page loading issue + redesign it to show user's personal details (photo, bio, values, mission, location, phone, email) with onboarding step
+
+Work Log:
+- Fixed SSR issue: moved getAreaConfig('havilah') from module-level to inside component with typeof window check
+- Added 7 new profile fields to Zustand store: profilePhoto, bio, location, phone, email, personalValues, missionStatement
+- Updated user-profile API (GET + POST) to handle all new fields via Settings key-value table
+- Completely redesigned About page: now shows user's photo, name, OS name, location, phone, email, bio, mission statement, core values, business profile, life areas, and operating cadence
+- Added inline Edit Profile mode on About page with photo upload, bio, location, phone, email, values editor, mission statement, and business profile editing
+- Added new "setup-profile" step in auth-gate onboarding flow (between setup-business and setup-code)
+- Profile setup step includes: photo upload, bio, location, phone, email, mission statement, and core values (add/remove)
+- Updated Settings > Profile tab with all new fields (photo, bio, location, phone, email, mission, values, business)
+- All fields save to PostgreSQL via /api/user-profile and sync to Zustand store + localStorage
+- Build passes with no errors
+- Pushed to GitHub and deployed to Vercel
+
+Stage Summary:
+- About page now dynamically displays user's personal details instead of static content
+- Onboarding flow: Name → Business → Profile (NEW) → Access Code
+- Users can edit everything from the About page or Settings > Profile
+- Core values are customizable (add/remove, not hardcoded)
+- Profile photo supports upload with 2MB limit
+- Deployed to: https://myos-life-v2.vercel.app
