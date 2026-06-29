@@ -143,7 +143,7 @@ function CorrelationsSection() {
 
   const areas = ['faith', 'health', 'career', 'havilah', 'finances', 'relationships', 'personalGrowth']
   const areaLabels: Record<string, string> = {
-    faith: 'Faith', health: 'Health', career: 'Career', havilah: 'Havilah',
+    faith: 'Faith', health: 'Health', career: 'Career', havilah: 'Business',
     finances: 'Finances', relationships: 'Relationships', personalGrowth: 'Growth',
   }
 

@@ -8,7 +8,7 @@ import {
   Heart,
   Activity,
   Briefcase,
-  Gem,
+  Building2,
   Wallet,
   Users,
   Sprout,
@@ -23,6 +23,7 @@ import {
   BarChart3,
   Zap,
 } from 'lucide-react'
+import { getAreaConfig } from '@/lib/area-config'
 
 const coreValues = [
   { label: 'Purpose' },
@@ -35,11 +36,13 @@ const coreValues = [
   { label: 'Joy' },
 ]
 
+const businessArea = getAreaConfig('havilah')
+
 const lifeAreas = [
   { label: 'Faith', desc: 'Prayer, scripture, devotion, spiritual growth', icon: <Heart className="h-4 w-4 text-red-500" /> },
   { label: 'Health', desc: 'Sleep, food, movement, gym, energy, rest', icon: <Activity className="h-4 w-4 text-rose-500" /> },
   { label: 'Career', desc: 'Applications, skills, CV, interviews, professional growth', icon: <Briefcase className="h-4 w-4 text-red-600" /> },
-  { label: 'Havilah', desc: 'Business, ventures, revenue, clients, systems', icon: <Gem className="h-4 w-4 text-rose-600" /> },
+  { label: businessArea.label, desc: 'Business, ventures, revenue, clients, systems', icon: <Building2 className="h-4 w-4 text-rose-600" /> },
   { label: 'Finances', desc: 'Money tracking, savings, giving, budgeting, stewardship', icon: <Wallet className="h-4 w-4 text-red-500" /> },
   { label: 'Relationships', desc: 'Family, friends, community, mentorship', icon: <Users className="h-4 w-4 text-rose-500" /> },
   { label: 'Personal Growth', desc: 'Learning, reading, journaling, reflection, discipline', icon: <Sprout className="h-4 w-4 text-red-700" /> },

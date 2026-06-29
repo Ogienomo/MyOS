@@ -212,7 +212,7 @@ export async function POST(request: NextRequest) {
       contextParts.push('Recent scores:')
       for (const s of recentScores) {
         contextParts.push(
-          `  ${s.date}: Faith=${s.faith} Health=${s.health} Career=${s.career} Havilah=${s.havilah} Finances=${s.finances} Relationships=${s.relationships} PersonalGrowth=${s.personalGrowth} Overall=${s.overall}`
+          `  ${s.date}: Faith=${s.faith} Health=${s.health} Career=${s.career} Business=${s.havilah} Finances=${s.finances} Relationships=${s.relationships} PersonalGrowth=${s.personalGrowth} Overall=${s.overall}`
         )
       }
     }
@@ -298,7 +298,7 @@ export async function POST(request: NextRequest) {
         const s = recentScores[0]
         parts.push('## Your Current Standing')
         parts.push('')
-        parts.push(`Faith: **${s.faith}/10** | Health: **${s.health}/10** | Career: **${s.career}/10** | Havilah: **${s.havilah}/10** | Finances: **${s.finances}/10** | Relationships: **${s.relationships}/10** | Personal Growth: **${s.personalGrowth}/10**`)
+        parts.push(`Faith: **${s.faith}/10** | Health: **${s.health}/10** | Career: **${s.career}/10** | Business: **${s.havilah}/10** | Finances: **${s.finances}/10** | Relationships: **${s.relationships}/10** | Personal Growth: **${s.personalGrowth}/10**`)
         parts.push(`Overall: **${s.overall}/10**`)
         parts.push('')
       }

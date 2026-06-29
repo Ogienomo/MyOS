@@ -203,8 +203,12 @@ interface AppState {
   // User Profile
   userName: string
   osName: string
+  businessName: string
+  businessDescription: string
   setUserName: (name: string) => void
   setOsName: (name: string) => void
+  setBusinessName: (name: string) => void
+  setBusinessDescription: (desc: string) => void
   isSetupComplete: boolean
   setIsSetupComplete: (val: boolean) => void
 
@@ -332,8 +336,12 @@ export const useAppStore = create<AppState>((set) => ({
   // User Profile
   userName: '',
   osName: 'MyOS',
+  businessName: '',
+  businessDescription: '',
   setUserName: (name) => set({ userName: name, osName: name ? `${name}OS` : 'MyOS' }),
   setOsName: (name) => set({ osName: name }),
+  setBusinessName: (name) => set({ businessName: name }),
+  setBusinessDescription: (desc) => set({ businessDescription: desc }),
   isSetupComplete: false,
   setIsSetupComplete: (val) => set({ isSetupComplete: val }),
 

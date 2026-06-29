@@ -19,7 +19,7 @@ const TOUR_STEPS = [
   },
   {
     title: "Life Areas",
-    description: "Track 7 areas of your life \u2014 Faith, Health, Career, Havilah, Finances, Relationships, and Personal Growth.",
+    description: "Track 7 areas of your life — Faith, Health, Career, Business, Finances, Relationships, and Personal Growth.",
     icon: Compass,
     target: 'life',
   },

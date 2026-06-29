@@ -67,7 +67,7 @@ function memoriesToCSV(data: Awaited<ReturnType<typeof getMemoriesData>>): strin
 }
 
 function scoresToCSV(data: Awaited<ReturnType<typeof getScoresData>>): string {
-  const headers = ['Date', 'Faith', 'Health', 'Career', 'Havilah', 'Finances', 'Relationships', 'PersonalGrowth', 'Overall']
+  const headers = ['Date', 'Faith', 'Health', 'Career', 'Business', 'Finances', 'Relationships', 'PersonalGrowth', 'Overall']
   const rows = data.map(e => toCSVRow([e.date, String(e.faith), String(e.health), String(e.career), String(e.havilah), String(e.finances), String(e.relationships), String(e.personalGrowth), String(e.overall)]))
   return [headers.join(','), ...rows].join('\n')
 }

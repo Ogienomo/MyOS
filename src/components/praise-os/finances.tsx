@@ -1148,7 +1148,7 @@ export function Finances() {
                     <Input
                       value={savingsFormData.area}
                       onChange={(e) => setSavingsFormData(prev => ({ ...prev, area: e.target.value }))}
-                      placeholder="e.g., career, havilah"
+                      placeholder="e.g., career, business"
                       className="text-sm"
                     />
                   </div>

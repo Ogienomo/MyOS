@@ -118,7 +118,22 @@ function renderTab(tab: string, chatResetKey: number = 0) {
 }
 
 export default function MyOSApp() {
-  const { isAuthenticated, activeTab, settingsOpen, setSettingsOpen, osName } = useAppStore()
+  const { isAuthenticated, activeTab, settingsOpen, setSettingsOpen, osName, businessName, businessDescription } = useAppStore()
+
+  // Sync business name/description to localStorage for dynamic area labels
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (businessName) {
+      localStorage.setItem('myos-business-name', businessName)
+    } else {
+      localStorage.removeItem('myos-business-name')
+    }
+    if (businessDescription) {
+      localStorage.setItem('myos-business-description', businessDescription)
+    } else {
+      localStorage.removeItem('myos-business-description')
+    }
+  }, [businessName, businessDescription])
 
   // Handle OAuth callback redirect params - open Settings to show the result
   useEffect(() => {

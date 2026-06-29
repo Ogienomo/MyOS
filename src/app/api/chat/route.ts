@@ -96,7 +96,7 @@ function formatContextForAI(ctx: LifeContext): string {
   if (ctx.recentScores.length > 0) {
     parts.push('--- RECENT LIFE SCORES ---')
     for (const s of ctx.recentScores) {
-      parts.push(`${s.date}: Faith=${s.faith} Health=${s.health} Career=${s.career} Havilah=${s.havilah} Finances=${s.finances} Relationships=${s.relationships} PersonalGrowth=${s.personalGrowth} Overall=${s.overall}`)
+      parts.push(`${s.date}: Faith=${s.faith} Health=${s.health} Career=${s.career} Business=${s.havilah} Finances=${s.finances} Relationships=${s.relationships} PersonalGrowth=${s.personalGrowth} Overall=${s.overall}`)
     }
   }
   if (ctx.activeGoals.length > 0) {
@@ -207,7 +207,7 @@ const AREA_LABELS: Record<string, string> = {
   faith: 'Faith & Spiritual Life',
   health: 'Health & Wellness',
   career: 'Career & Professional Growth',
-  havilah: 'Havilah & Entrepreneurship',
+  havilah: 'Business & Entrepreneurship',
   finances: 'Finances & Stewardship',
   relationships: 'Relationships & Community',
   personalGrowth: 'Personal Growth & Learning',
@@ -391,7 +391,7 @@ function generateCoachingResponse(message: string, ctx: LifeContext, checkInType
     return generateAreaSpecificResponse('career', ctx, scoreAnalysis)
   }
 
-  // === HAVILAH ===
+  // === BUSINESS ===
   if (lowerMessage.match(/\b(havilah|business|entrepreneur|client|revenue|hub|writer)\b/)) {
     return generateAreaSpecificResponse('havilah', ctx, scoreAnalysis)
   }
@@ -783,9 +783,9 @@ function generateAreaSpecificResponse(area: string, ctx: LifeContext, scoreAnaly
     parts.push('')
     parts.push('> **Today\'s move:** Spend 30 minutes on your CV or one job application. Small daily progress compounds.')
   } else if (area === 'havilah') {
-    parts.push('Havilah is your entrepreneurial calling. But activity is not progress. Ask: Did this move the business forward? Produce revenue? Build capacity?')
+    parts.push('Your business is your entrepreneurial calling. But activity is not progress. Ask: Did this move the business forward? Produce revenue? Build capacity?')
     parts.push('')
-    parts.push('> **Today\'s move:** Identify the ONE thing that would move Havilah forward this week. Then do it before anything else.')
+    parts.push('> **Today\'s move:** Identify the ONE thing that would move your business forward this week. Then do it before anything else.')
   } else if (area === 'finances') {
     parts.push(analyzeFinances(ctx))
   } else if (area === 'relationships') {

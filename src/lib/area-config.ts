@@ -2,6 +2,9 @@
  * MyOS — Life Area Configuration
  * Centralized colors, labels, and icons for all 7 life areas.
  * Import this instead of hard-coding area labels/colors everywhere.
+ *
+ * The "havilah" area label is dynamic — it shows the user's business name
+ * if set, otherwise defaults to "Business".
  */
 
 export const AREA_CONFIG: Record<string, {
@@ -37,12 +40,12 @@ export const AREA_CONFIG: Record<string, {
     icon: 'Briefcase',
   },
   havilah: {
-    label: 'Havilah',
+    label: 'Business',
     color: 'bg-amber-100 text-amber-700',
     accent: 'amber',
     bgColor: 'bg-amber-50',
     borderColor: 'border-amber-200',
-    icon: 'Flame',
+    icon: 'Building2',
   },
   finances: {
     label: 'Finances',
@@ -70,8 +73,37 @@ export const AREA_CONFIG: Record<string, {
   },
 }
 
-/** Get area config with fallback for unknown areas */
+/** Get the dynamic business label from localStorage */
+export function getBusinessLabel(): string {
+  if (typeof window !== 'undefined') {
+    try {
+      const stored = localStorage.getItem('myos-business-name')
+      if (stored && stored.trim()) return stored.trim()
+    } catch {}
+  }
+  return 'Business'
+}
+
+/** Get the dynamic business description from localStorage */
+export function getBusinessDescription(): string {
+  if (typeof window !== 'undefined') {
+    try {
+      const stored = localStorage.getItem('myos-business-description')
+      if (stored && stored.trim()) return stored.trim()
+    } catch {}
+  }
+  return 'Revenue, clients, systems, growth'
+}
+
+/** Get area config with fallback for unknown areas. Uses dynamic business label for havilah. */
 export function getAreaConfig(area: string) {
+  if (area === 'havilah') {
+    const baseConfig = AREA_CONFIG[area]
+    return {
+      ...baseConfig,
+      label: getBusinessLabel(),
+    }
+  }
   return AREA_CONFIG[area] || {
     label: area.charAt(0).toUpperCase() + area.slice(1),
     color: 'bg-neutral-100 text-neutral-700',

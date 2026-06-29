@@ -20,8 +20,8 @@ const OVERALL_AREA_MAP: Record<string, string> = {
   'overall_Relationship Goals': 'relationships',
 }
 
-// Havilah-related goals that are in the Career sheet but belong to Havilah area
-const HAVILAH_GOAL_KEYWORDS = [
+// Business-related goals that are in the Career sheet but belong to Business area
+const BUSINESS_GOAL_KEYWORDS = [
   'havilah',
   'hub',
   'tutors',
@@ -29,9 +29,9 @@ const HAVILAH_GOAL_KEYWORDS = [
   'partner',
 ]
 
-function isHavilahGoal(goalTitle: string): boolean {
+function isBusinessGoal(goalTitle: string): boolean {
   const lower = goalTitle.toLowerCase()
-  return HAVILAH_GOAL_KEYWORDS.some((keyword) => lower.includes(keyword))
+  return BUSINESS_GOAL_KEYWORDS.some((keyword) => lower.includes(keyword))
 }
 
 // Praise's 2026 vision for each area
@@ -79,18 +79,18 @@ const VISION_DATA: Record<string, { idealVision: string; currentStatus: string; 
     motivation: 'An international role provides stability, growth, and the platform to fund and support all other areas of vision.',
   },
   havilah: {
-    idealVision: 'Build Havilah Learning Hub and Havilah Writers into revenue-generating businesses with systems, clients, and growth. Move from side project to sustainable enterprise.',
-    currentStatus: 'Havilah Learning Hub and Havilah Writers are operational but need systems, website, partnerships, and revenue growth.',
+    idealVision: 'Build your business into a revenue-generating enterprise with systems, clients, and growth. Move from side project to sustainable enterprise.',
+    currentStatus: 'Business is operational but needs systems, website, partnerships, and revenue growth.',
     keyActions: JSON.stringify([
-      'Rent 3-bed Havilah Hub in Abuja',
-      'Build website for Havilah Writers',
-      'Find business partner(s) for Havilah',
+      'Secure business space/hub',
+      'Build professional website',
+      'Find business partner(s)',
       'Groom junior research writers',
       'Establish client onboarding systems',
       'Create revenue targets per service',
     ]),
-    blockers: 'No dedicated space, limited systems, no website for writers, need business partners.',
-    motivation: 'Havilah is the entrepreneurial expression of Praise\'s calling. Building it well creates sustainable income and impact.',
+    blockers: 'No dedicated space, limited systems, need business partners.',
+    motivation: 'Your business is the entrepreneurial expression of your calling. Building it well creates sustainable income and impact.',
   },
   finances: {
     idealVision: 'Become financially disciplined and aware. Track every naira. Build savings. Reduce wasteful spending. Align all spending with goals. Achieve financial stewardship.',
@@ -163,10 +163,10 @@ const SAMPLE_GOALS: Record<string, { title: string; description: string }[]> = {
     { title: 'Complete online courses & certifications', description: 'Continuous professional development' },
   ],
   havilah: [
-    { title: 'Rent 3-bed Havilah Hub in Abuja', description: 'Secure physical space for the learning hub' },
-    { title: 'Build website for Havilah Writers', description: 'Professional web presence for the writing business' },
-    { title: 'Find business partner(s) for Havilah', description: 'Strategic partnership for growth' },
-    { title: 'Groom junior research writers', description: 'Build a team of skilled writers' },
+    { title: 'Secure business space/hub', description: 'Secure physical space for operations' },
+    { title: 'Build professional website', description: 'Professional web presence for the business' },
+    { title: 'Find business partner(s)', description: 'Strategic partnership for growth' },
+    { title: 'Groom junior team members', description: 'Build a skilled team' },
     { title: 'Establish client onboarding systems', description: 'Professional systems for client management' },
   ],
   finances: [
@@ -321,7 +321,7 @@ async function processGoalsData(goalsData: Record<string, unknown>): Promise<{ g
       if (!foundGoalId) {
         const baseArea = AREA_MAP[sheetKey] || 'career'
         let area = baseArea
-        if (isHavilahGoal(parentGoalTitle)) {
+        if (isBusinessGoal(parentGoalTitle)) {
           area = 'havilah'
         }
 
@@ -383,7 +383,7 @@ async function processGoalsData(goalsData: Record<string, unknown>): Promise<{ g
       const goalTitle = String(row[0])
 
       let area = baseArea
-      if (baseArea === 'career' && isHavilahGoal(goalTitle)) {
+      if (baseArea === 'career' && isBusinessGoal(goalTitle)) {
         area = 'havilah'
       }
 

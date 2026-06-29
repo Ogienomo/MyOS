@@ -71,7 +71,7 @@ const checkInTemplates = [
       { key: 'goalsMissed', label: 'Goals Missed', placeholder: 'What goals did you miss?' },
       { key: 'moneyReceived', label: 'Money Received', placeholder: 'Any money received today?' },
       { key: 'moneySpent', label: 'Money Spent', placeholder: 'What did you spend money on?' },
-      { key: 'havilahProgress', label: 'Havilah Progress', placeholder: 'Any progress on Havilah?' },
+      { key: 'havilahProgress', label: 'Business Progress', placeholder: 'Any progress on your business?' },
       { key: 'distractions', label: 'Distractions', placeholder: 'What distracted you?' },
       { key: 'lessons', label: 'Lessons Learned', placeholder: 'What did you learn?' },
     ],
@@ -85,7 +85,7 @@ const checkInTemplates = [
       { key: 'faith', label: 'Faith', placeholder: 'How was your spiritual life this week?' },
       { key: 'health', label: 'Health', placeholder: 'How was your health this week?' },
       { key: 'career', label: 'Career', placeholder: 'Career progress this week?' },
-      { key: 'havilah', label: 'Havilah', placeholder: 'Havilah progress this week?' },
+      { key: 'havilah', label: 'Business', placeholder: 'Business progress this week?' },
       { key: 'finances', label: 'Finances', placeholder: 'Financial summary this week?' },
       { key: 'relationships', label: 'Relationships', placeholder: 'How were your relationships?' },
       { key: 'personalGrowth', label: 'Personal Growth', placeholder: 'How did you grow this week?' },
@@ -137,7 +137,7 @@ function getPromptChips(hour: number): { label: string; message: string; icon: s
     { label: 'Pattern alert', message: "Based on what you know about me, what negative pattern should I be aware of and break right now?", icon: '⚠️' },
   ]
 
-  const catchMeUp = { label: 'Catch Me Up', message: "Give me a 3-bullet summary of my progress today across all life areas — Faith, Health, Career, Havilah, Finances, Relationships, and Personal Growth — based on everything I've logged today.", icon: '📊' }
+  const catchMeUp = { label: 'Catch Me Up', message: "Give me a 3-bullet summary of my progress today across all life areas — Faith, Health, Career, Business, Finances, Relationships, and Personal Growth — based on everything I've logged today.", icon: '📊' }
 
   if (hour < 12) return [catchMeUp, ...morning, ...universal].slice(0, 5)
   if (hour < 17) return [catchMeUp, ...midday, ...universal].slice(0, 5)
@@ -2094,12 +2094,12 @@ export function Chat() {
               // Smart tag suggestions for each field
               const SMART_TAGS: Record<string, string[]> = {
                 goalsMet: [
-                  'Completed Morning Alignment', 'Completed Havilah task', 'Hit daily budget target',
+                  'Completed Morning Alignment', 'Completed Business task', 'Hit daily budget target',
                   'Bible reading done', 'Gym/workout done', 'Deep work block completed',
                   'Client follow-up done', 'No junk food today', 'Journaling done', 'All goals met',
                 ],
                 goalsMissed: [
-                  'Missed budgeting review', 'Delayed Havilah execution', 'Skipped morning prayer',
+                  'Missed budgeting review', 'Delayed Business execution', 'Skipped morning prayer',
                   'No gym today', 'Got distracted / anxious', 'Ran out of time',
                   'Skipped deep work', 'No Bible reading', 'Budget not reviewed', 'Missed client follow-up',
                 ],
@@ -2113,10 +2113,10 @@ export function Chat() {
                 ],
                 havilahProgress: [
                   'Client outreach done', 'Content created', 'Revenue generated',
-                  'Systems improved', 'Team coordination', 'No Havilah progress today',
+                  'Systems improved', 'Team coordination', 'No Business progress today',
                 ],
                 priorities: [
-                  'Deep work block', 'Client emails', 'Havilah admin', 'Job application',
+                  'Deep work block', 'Client emails', 'Business admin', 'Job application',
                   'Bible study', 'Gym', 'Journaling', 'Budget review',
                 ],
                 blockers: [

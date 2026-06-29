@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
         },
         {
           summary: 'Evening Review — MyOS',
-          description: 'Close your day with honesty. Share goals met/missed, money, Havilah, distractions, lessons.',
+          description: 'Close your day with honesty. Share goals met/missed, money, business, distractions, lessons.',
           time: eveningTime,
         },
       ]
@@ -156,7 +156,7 @@ export async function POST(request: NextRequest) {
             calendarId: 'primary',
             requestBody: {
               summary: 'Friday Strategic Review — MyOS',
-              description: 'Serious weekly review across all life areas: Faith, Health, Career, Havilah, Finances, Relationships, Growth.',
+              description: 'Serious weekly review across all life areas: Faith, Health, Career, Business, Finances, Relationships, Growth.',
               start: {
                 dateTime: createDateTime(fridayTime, dayOffset),
                 timeZone: 'Africa/Lagos',

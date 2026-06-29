@@ -12,7 +12,7 @@ import { Slider } from '@/components/ui/slider'
 import {
   Sparkles, Sun, Clock, Moon, TrendingUp, AlertTriangle, DollarSign,
   ArrowRight, CheckCircle2, Circle, Loader2, Flame, Zap, Brain,
-  Target, Heart, Activity, Briefcase, Gem, Users, Sprout, Wallet,
+  Target, Heart, Activity, Briefcase, Building2, Users, Sprout, Wallet,
   RotateCcw, Trophy, AlertCircle, Timer, Bell, BellRing,
   Settings2, ChevronUp, ChevronDown, Eye, EyeOff, ChevronDownSquare,
   X, Lightbulb,

@@ -19,7 +19,7 @@ import {
   Heart,
   Dumbbell,
   Briefcase,
-  Gem,
+  Building2,
   Users,
   Sprout,
   Wallet,
@@ -43,16 +43,6 @@ const mainNavItems: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'calendar', label: 'Calendar', icon: <Calendar className="h-5 w-5" /> },
 ]
 
-const lifeAreaItems: { id: TabId; label: string; icon: React.ReactNode }[] = [
-  { id: 'faith', label: 'Faith', icon: <Heart className="h-5 w-5" /> },
-  { id: 'health', label: 'Health', icon: <Dumbbell className="h-5 w-5" /> },
-  { id: 'career', label: 'Career', icon: <Briefcase className="h-5 w-5" /> },
-  { id: 'havilah', label: 'Havilah', icon: <Gem className="h-5 w-5" /> },
-  { id: 'finances', label: 'Finances', icon: <Wallet className="h-5 w-5" /> },
-  { id: 'relationships', label: 'Relationships', icon: <Users className="h-5 w-5" /> },
-  { id: 'personalGrowth', label: 'Growth', icon: <Sprout className="h-5 w-5" /> },
-]
-
 const mobileNavItems: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'dashboard', label: 'Home', icon: <LayoutDashboard className="h-5 w-5" /> },
   { id: 'chat', label: 'Coach', icon: <MessageCircle className="h-5 w-5" /> },
@@ -62,8 +52,19 @@ const mobileNavItems: { id: TabId; label: string; icon: React.ReactNode }[] = [
 ]
 
 export function Sidebar() {
-  const { activeTab, setActiveTab, setIsAuthenticated, setSettingsOpen, osName } = useAppStore()
+  const { activeTab, setActiveTab, setIsAuthenticated, setSettingsOpen, osName, businessName } = useAppStore()
   const [mobileOpen, setMobileOpen] = useState(false)
+
+  // Build life area items with dynamic business name
+  const lifeAreaItems: { id: TabId; label: string; icon: React.ReactNode }[] = [
+    { id: 'faith', label: 'Faith', icon: <Heart className="h-5 w-5" /> },
+    { id: 'health', label: 'Health', icon: <Dumbbell className="h-5 w-5" /> },
+    { id: 'career', label: 'Career', icon: <Briefcase className="h-5 w-5" /> },
+    { id: 'havilah', label: businessName || 'Business', icon: <Building2 className="h-5 w-5" /> },
+    { id: 'finances', label: 'Finances', icon: <Wallet className="h-5 w-5" /> },
+    { id: 'relationships', label: 'Relationships', icon: <Users className="h-5 w-5" /> },
+    { id: 'personalGrowth', label: 'Growth', icon: <Sprout className="h-5 w-5" /> },
+  ]
 
   const handleLogout = () => {
     localStorage.removeItem('myos-auth')

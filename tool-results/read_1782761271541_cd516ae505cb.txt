@@ -1,0 +1,1410 @@
+     1→'use client'
+     2→
+     3→import { useState, useEffect, useCallback } from 'react'
+     4→import { useAppStore, DashboardData, QuickLogData, StreakData } from '@/lib/store'
+     5→import { ScoreCard } from './score-card'
+     6→import { DashboardSkeleton } from './loading-skeleton'
+     7→import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+     8→import { Button } from '@/components/ui/button'
+     9→import { Badge } from '@/components/ui/badge'
+    10→import { Progress } from '@/components/ui/progress'
+    11→import { Slider } from '@/components/ui/slider'
+    12→import {
+    13→  Sparkles, Sun, Clock, Moon, TrendingUp, AlertTriangle, DollarSign,
+    14→  ArrowRight, CheckCircle2, Circle, Loader2, Flame, Zap, Brain,
+    15→  Target, Heart, Activity, Briefcase, Gem, Users, Sprout, Wallet,
+    16→  RotateCcw, Trophy, AlertCircle, Timer, Bell, BellRing,
+    17→  Settings2, ChevronUp, ChevronDown, Eye, EyeOff, ChevronDownSquare,
+    18→  X, Lightbulb,
+    19→} from 'lucide-react'
+    20→import { motion } from 'framer-motion'
+    21→
+    22→// ─── TIME ZONE ───────────────────────────────────────────────
+    23→const USER_TIMEZONE = 'Africa/Lagos'
+    24→
+    25→// ─── CHECK-IN WINDOW DEFINITIONS (hour ranges in WAT) ────────
+    26→interface CheckInWindow {
+    27→  type: string
+    28→  label: string
+    29→  emoji: string
+    30→  startHour: number  // inclusive
+    31→  endHour: number    // exclusive
+    32→  deadlineHour: number // last acceptable hour (inclusive)
+    33→}
+    34→
+    35→const CHECK_IN_WINDOWS: CheckInWindow[] = [
+    36→  { type: 'morning', label: 'Morning Alignment', emoji: '', startHour: 4, endHour: 10, deadlineHour: 11 },
+    37→  { type: 'midday', label: 'Midday Correction', emoji: '', startHour: 12, endHour: 14, deadlineHour: 15 },
+    38→  { type: 'evening', label: 'Evening Review', emoji: '', startHour: 18, endHour: 22, deadlineHour: 23 },
+    39→]
+    40→
+    41→// ─── GRANULAR GREETING (11 time periods) ─────────────────────
+    42→function getSmartGreeting(completedCheckIns: string[], userName: string): { greeting: string; coachingMessage: string; period: string } {
+    43→  const hour = new Date().getHours()
+    44→  const day = new Date().getDay() // 0=Sun, 5=Fri
+    45→  const isFriday = day === 5
+    46→  const isSunday = day === 0
+    47→  const name = userName || 'there'
+    48→
+    49→  let greeting = ''
+    50→  let coachingMessage = ''
+    51→  let period = ''
+    52→
+    53→  if (hour >= 4 && hour < 5) {
+    54→    greeting = `Rise and Align, ${name}`
+    55→    period = 'dawn'
+    56→    coachingMessage = completedCheckIns.includes('morning')
+    57→      ? "You're up before the world. Morning check-in done — you're already winning."
+    58→      : "The early hours are sacred. Your morning check-in is waiting — start here."
+    59→  } else if (hour >= 5 && hour < 6) {
+    60→    greeting = `Early Riser, ${name}`
+    61→    period = 'early-morning'
+    62→    coachingMessage = completedCheckIns.includes('morning')
+    63→      ? "Early and aligned. This is the energy that builds empires."
+    64→      : "You're up early — don't waste it. Morning Alignment is open."
+    65→  } else if (hour >= 6 && hour < 8) {
+    66→    greeting = `Good Morning, ${name}`
+    67→    period = 'morning'
+    68→    coachingMessage = completedCheckIns.includes('morning')
+    69→      ? "Fresh start energy. You've set the tone — now execute."
+    70→      : "Fresh start energy. Don't waste it — do your Morning Alignment."
+    71→  } else if (hour >= 8 && hour < 10) {
+    72→    greeting = `Morning, ${name}`
+    73→    period = 'late-morning'
+    74→    coachingMessage = completedCheckIns.includes('morning')
+    75→      ? "Morning done. The day is moving — stay intentional."
+    76→      : "Your morning check-in window is closing. Urgency matters. Do it now."
+    77→  } else if (hour >= 10 && hour < 12) {
+    78→    greeting = `Late Morning, ${name}`
+    79→    period = 'late-morning-critical'
+    80→    coachingMessage = completedCheckIns.includes('morning')
+    81→      ? "Morning done, even if late. Now recover the day with focus."
+    82→      : `${name}, your morning check-in is critically overdue. No more delays — do it NOW.`
+    83→  } else if (hour >= 12 && hour < 14) {
+    84→    greeting = `Good Afternoon, ${name}`
+    85→    period = 'afternoon'
+    86→    coachingMessage = completedCheckIns.includes('midday')
+    87→      ? "Midday correction done. You're on course — keep pushing."
+    88→      : "Midday check-in time. Are you on track or drifting? Find out now."
+    89→  } else if (hour >= 14 && hour < 16) {
+    90→    greeting = `Afternoon, ${name}`
+    91→    period = 'late-afternoon'
+    92→    coachingMessage = completedCheckIns.includes('midday')
+    93→      ? "Afternoon momentum. Stay the course."
+    94→      : "Midday check-in is still open but closing soon. Course-correct now."
+    95→  } else if (hour >= 16 && hour < 18) {
+    96→    greeting = `Late Afternoon, ${name}`
+    97→    period = 'late-afternoon-eve'
+    98→    coachingMessage = isFriday && !completedCheckIns.includes('friday')
+    99→      ? "Friday Strategic Review is due. Don't let the week end without accountability."
+   100→      : completedCheckIns.includes('midday')
+   101→        ? "Wrap-up focus. Start thinking about your evening review."
+   102→        : "Last chance for midday check-in. Evening review is coming."
+   103→  } else if (hour >= 18 && hour < 20) {
+   104→    greeting = `Good Evening, ${name}`
+   105→    period = 'evening'
+   106→    coachingMessage = completedCheckIns.includes('evening')
+   107→      ? "Evening review done. Time to rest or push further — your call."
+   108→      : "Evening review time. How did the day go? Account for it now."
+   109→  } else if (hour >= 20 && hour < 22) {
+   110→    greeting = `Evening, ${name}`
+   111→    period = 'late-evening'
+   112→    coachingMessage = completedCheckIns.includes('evening')
+   113→      ? "Evening review complete. Wind down with intention."
+   114→      : "Urgent: Your evening review is overdue. Don't skip accountability. Do it before bed."
+   115→  } else if (hour >= 22 && hour < 24) {
+   116→    greeting = `Good Night, ${name}`
+   117→    period = 'night'
+   118→    coachingMessage = completedCheckIns.includes('evening')
+   119→      ? "Evening review complete. Wind down — rest is discipline too."
+   120→      : "Last chance for your evening review. Don't let the day end without accounting for it."
+   121→  } else {
+   122→    // 12 AM - 4 AM
+   123→    greeting = `${name}, it's late`
+   124→    period = 'late-night'
+   125→    coachingMessage = `It's past your bedtime, ${name}. Rest is discipline too. Sleep now, align tomorrow.`
+   126→  }
+   127→
+   128→  // Override coaching message for Friday/Sunday specific check-ins
+   129→  if (isFriday && hour >= 16 && !completedCheckIns.includes('friday')) {
+   130→    coachingMessage = "Friday Strategic Review is due. Don't let the week end without accountability."
+   131→  }
+   132→  if (isSunday && hour >= 18 && !completedCheckIns.includes('sunday')) {
+   133→    coachingMessage = 'Sunday Planning awaits. Set up next week for success.'
+   134→  }
+   135→
+   136→  return { greeting, coachingMessage, period }
+   137→}
+   138→
+   139→// ─── SMART PROMPT (current expected check-in) ────────────────
+   140→function getSmartPrompt(completedCheckIns: string[], currentTime: Date, userName: string): { title: string; description: string; urgency: 'normal' | 'high' | 'critical'; expectedType: string; windowEnd: Date | null } {
+   141→  const name = userName || 'there'
+   142→  const hour = currentTime.getHours()
+   143→  const day = currentTime.getDay()
+   144→
+   145→  // Morning check-in urgency
+   146→  if (!completedCheckIns.includes('morning')) {
+   147→    if (hour >= 10) {
+   148→      const windowEnd = new Date(currentTime)
+   149→      windowEnd.setHours(11, 59, 59, 999)
+   150→      return { title: 'Morning Alignment Overdue', description: `${name}, your morning check-in is overdue. Discipline starts here. Do it now.`, urgency: 'critical', expectedType: 'morning', windowEnd }
+   151→    }
+   152→    if (hour >= 8) {
+   153→      const windowEnd = new Date(currentTime)
+   154→      windowEnd.setHours(9, 59, 59, 999)
+   155→      return { title: 'Morning Alignment', description: "Your morning check-in window is closing. Don't miss it.", urgency: 'high', expectedType: 'morning', windowEnd }
+   156→    }
+   157→    if (hour >= 5) {
+   158→      const windowEnd = new Date(currentTime)
+   159→      windowEnd.setHours(9, 59, 59, 999)
+   160→      return { title: 'Morning Alignment', description: 'Start your day with intention. Morning check-in is open.', urgency: 'normal', expectedType: 'morning', windowEnd }
+   161→    }
+   162→  }
+   163→
+   164→  // Midday check-in
+   165→  if (!completedCheckIns.includes('midday') && hour >= 12) {
+   166→    if (hour >= 14) {
+   167→      const windowEnd = new Date(currentTime)
+   168→      windowEnd.setHours(14, 59, 59, 999)
+   169→      return { title: 'Midday Correction Overdue', description: `${name}, your midday check-in is overdue. Course-correct now.`, urgency: 'critical', expectedType: 'midday', windowEnd }
+   170→    }
+   171→    const windowEnd = new Date(currentTime)
+   172→    windowEnd.setHours(13, 59, 59, 999)
+   173→    return { title: 'Midday Correction', description: 'Are you on track? Quick check-in to course-correct.', urgency: 'normal', expectedType: 'midday', windowEnd }
+   174→  }
+   175→
+   176→  // Evening check-in urgency
+   177→  if (!completedCheckIns.includes('evening')) {
+   178→    if (hour >= 22) {
+   179→      const windowEnd = new Date(currentTime)
+   180→      windowEnd.setHours(23, 59, 59, 999)
+   181→      return { title: 'Evening Review Overdue', description: `${name}, skipping your evening review means skipping accountability. Do it before sleep.`, urgency: 'critical', expectedType: 'evening', windowEnd }
+   182→    }
+   183→    if (hour >= 20) {
+   184→      const windowEnd = new Date(currentTime)
+   185→      windowEnd.setHours(21, 59, 59, 999)
+   186→      return { title: 'Evening Review', description: 'Time to account for your day. Evening check-in is open.', urgency: 'high', expectedType: 'evening', windowEnd }
+   187→    }
+   188→    if (hour >= 18) {
+   189→      const windowEnd = new Date(currentTime)
+   190→      windowEnd.setHours(21, 59, 59, 999)
+   191→      return { title: 'Evening Review', description: 'How did the day go? Account for it now.', urgency: 'normal', expectedType: 'evening', windowEnd }
+   192→    }
+   193→  }
+   194→
+   195→  // Friday check-in
+   196→  if (day === 5 && !completedCheckIns.includes('friday') && hour >= 16) {
+   197→    const windowEnd = new Date(currentTime)
+   198→    windowEnd.setHours(23, 59, 59, 999)
+   199→    return { title: 'Friday Strategic Review', description: "Week review time. Don't let the week end without accountability.", urgency: 'high', expectedType: 'friday', windowEnd }
+   200→  }
+   201→
+   202→  // Sunday check-in
+   203→  if (day === 0 && !completedCheckIns.includes('sunday') && hour >= 18) {
+   204→    const windowEnd = new Date(currentTime)
+   205→    windowEnd.setHours(23, 59, 59, 999)
+   206→    return { title: 'Sunday Planning', description: 'Plan the upcoming week. Set yourself up for alignment.', urgency: 'normal', expectedType: 'sunday', windowEnd }
+   207→  }
+   208→
+   209→  // Default - show next check-in
+   210→  return { title: 'Stay Aligned', description: 'All check-ins completed. Keep the momentum going.', urgency: 'normal', expectedType: 'morning', windowEnd: null }
+   211→}
+   212→
+   213→// ─── NUDGE SYSTEM: Calculate overdue check-ins with escalation ──
+   214→interface NudgeInfo {
+   215→  type: string
+   216→  label: string
+   217→  emoji: string
+   218→  minutesOverdue: number
+   219→  level: 'warning' | 'urgent' | 'critical'
+   220→  message: string
+   221→}
+   222→
+   223→function getOverdueNudges(completedCheckIns: string[], currentTime: Date): NudgeInfo[] {
+   224→  const hour = currentTime.getHours()
+   225→  const minute = currentTime.getMinutes()
+   226→  const now = hour * 60 + minute
+   227→  const nudges: NudgeInfo[] = []
+   228→
+   229→  // Morning: window closes at 10 AM (600 min), overdue after 10 AM
+   230→  if (!completedCheckIns.includes('morning') && now >= 600) {
+   231→    const minutesOverdue = now - 600
+   232→    if (minutesOverdue > 0) {
+   233→      nudges.push({
+   234→        type: 'morning',
+   235→        label: 'Morning Alignment',
+   236→        emoji: '',
+   237→        minutesOverdue,
+   238→        level: minutesOverdue >= 120 ? 'critical' : minutesOverdue >= 60 ? 'urgent' : 'warning',
+   239→        message: minutesOverdue >= 120
+   240→          ? `Your morning check-in is ${Math.floor(minutesOverdue / 60)}h ${minutesOverdue % 60}m overdue. This is critical, .`
+   241→          : minutesOverdue >= 60
+   242→            ? `Morning check-in is ${Math.floor(minutesOverdue / 60)}h overdue. Stop everything and do it now.`
+   243→            : `Morning check-in is ${minutesOverdue}m overdue. Don't let this slip.`,
+   244→      })
+   245→    }
+   246→  }
+   247→
+   248→  // Midday: window closes at 14:00 (840 min), overdue after 14:00
+   249→  if (!completedCheckIns.includes('midday') && now >= 840) {
+   250→    const minutesOverdue = now - 840
+   251→    if (minutesOverdue > 0) {
+   252→      nudges.push({
+   253→        type: 'midday',
+   254→        label: 'Midday Correction',
+   255→        emoji: '',
+   256→        minutesOverdue,
+   257→        level: minutesOverdue >= 120 ? 'critical' : minutesOverdue >= 60 ? 'urgent' : 'warning',
+   258→        message: minutesOverdue >= 120
+   259→          ? `Midday check-in is ${Math.floor(minutesOverdue / 60)}h ${minutesOverdue % 60}m overdue. The day is slipping.`
+   260→          : minutesOverdue >= 60
+   261→            ? `Midday check-in is ${Math.floor(minutesOverdue / 60)}h overdue. Course-correct now.`
+   262→            : `Midday check-in is ${minutesOverdue}m overdue. Quick check-in to realign.`,
+   263→      })
+   264→    }
+   265→  }
+   266→
+   267→  // Evening: window closes at 22:00 (1320 min), overdue after 22:00
+   268→  if (!completedCheckIns.includes('evening') && now >= 1320) {
+   269→    const minutesOverdue = now - 1320
+   270→    if (minutesOverdue > 0) {
+   271→      nudges.push({
+   272→        type: 'evening',
+   273→        label: 'Evening Review',
+   274→        emoji: '',
+   275→        minutesOverdue,
+   276→        level: minutesOverdue >= 120 ? 'critical' : minutesOverdue >= 60 ? 'urgent' : 'warning',
+   277→        message: minutesOverdue >= 120
+   278→          ? `Evening review is ${Math.floor(minutesOverdue / 60)}h overdue. Skipping accountability is not an option.`
+   279→          : minutesOverdue >= 60
+   280→            ? `Evening review is ${Math.floor(minutesOverdue / 60)}h overdue. Do it before you sleep.`
+   281→            : `Evening review is ${minutesOverdue}m overdue. Account for your day now.`,
+   282→      })
+   283→    }
+   284→  }
+   285→
+   286→  // Sort by most critical first
+   287→  return nudges.sort((a, b) => {
+   288→    const levelOrder = { critical: 3, urgent: 2, warning: 1 }
+   289→    return levelOrder[b.level] - levelOrder[a.level]
+   290→  })
+   291→}
+   292→
+   293→// ─── HELPERS ─────────────────────────────────────────────────
+   294→function formatTime(date: Date): string {
+   295→  let hours = date.getHours()
+   296→  const minutes = date.getMinutes()
+   297→  const ampm = hours >= 12 ? 'PM' : 'AM'
+   298→  hours = hours % 12
+   299→  if (hours === 0) hours = 12
+   300→  return `${hours}:${minutes.toString().padStart(2, '0')}\u00A0${ampm}`
+   301→}
+   302→
+   303→function formatMinutesToTime(minutes: number): string {
+   304→  const h = Math.floor(minutes / 60) % 24
+   305→  const m = minutes % 60
+   306→  const ampm = h >= 12 ? 'PM' : 'AM'
+   307→  const displayH = h === 0 ? 12 : h > 12 ? h - 12 : h
+   308→  return `${displayH}:${m.toString().padStart(2, '0')}\u00A0${ampm}`
+   309→}
+   310→
+   311→function getTimezoneAbbr(): string {
+   312→  try {
+   313→    const formatter = new Intl.DateTimeFormat('en-US', {
+   314→      timeZone: USER_TIMEZONE,
+   315→      timeZoneName: 'short',
+   316→    })
+   317→    const parts = formatter.formatToParts(new Date())
+   318→    const tzPart = parts.find(p => p.type === 'timeZoneName')
+   319→    return tzPart?.value || 'WAT'
+   320→  } catch {
+   321→    return 'WAT'
+   322→  }
+   323→}
+   324→
+   325→function formatCountdown(ms: number): string {
+   326→  if (ms <= 0) return 'Closing now'
+   327→  const totalMinutes = Math.floor(ms / 60000)
+   328→  const hours = Math.floor(totalMinutes / 60)
+   329→  const minutes = totalMinutes % 60
+   330→  if (hours > 0) return `${hours}h ${minutes}m left`
+   331→  if (minutes > 0) return `${minutes}m left`
+   332→  return 'Less than 1m left'
+   333→}
+   334→
+   335→// ─── WIDGET SETTINGS INTERFACE ───────────────────────────────
+   336→interface WidgetSetting {
+   337→  id: string
+   338→  widgetId: string
+   339→  visible: boolean
+   340→  order: number
+   341→  collapsed: boolean
+   342→}
+   343→
+   344→const WIDGET_LABELS: Record<string, { label: string; icon: string }> = {
+   345→  'checkin': { label: 'Check-in', icon: '' },
+   346→  'scores': { label: 'Life Scores', icon: '' },
+   347→  'finances': { label: 'Finances', icon: '' },
+   348→  'goals': { label: 'Goals & Tasks', icon: '' },
+   349→  'mood': { label: 'Daily Mood Log', icon: '' },
+   350→  'drift-alerts': { label: 'Drift Alerts', icon: '' },
+   351→  'streaks': { label: 'Streaks & Wins', icon: '' },
+   352→}
+   353→
+   354→// ─── WIDGET WRAPPER COMPONENT ────────────────────────────────
+   355→function WidgetSection({ widgetId, widgetSettings, children }: {
+   356→  widgetId: string
+   357→  widgetSettings: WidgetSetting[]
+   358→  children: React.ReactNode
+   359→}) {
+   360→  const setting = widgetSettings.find(w => w.widgetId === widgetId)
+   361→  if (!setting || !setting.visible) return null
+   362→  if (setting.collapsed) {
+   363→    return (
+   364→      <Card className="shadow-sm">
+   365→        <CardContent className="p-3">
+   366→          <div className="flex items-center gap-2 text-neutral-400 dark:text-neutral-500">
+   367→            <span className="text-sm">{WIDGET_LABELS[widgetId]?.icon}</span>
+   368→            <span className="text-xs font-medium">{WIDGET_LABELS[widgetId]?.label}</span>
+   369→            <span className="text-[10px]">— collapsed</span>
+   370→          </div>
+   371→        </CardContent>
+   372→      </Card>
+   373→    )
+   374→  }
+   375→  return <>{children}</>
+   376→}
+   377→
+   378→// ─── MAIN COMPONENT ──────────────────────────────────────────
+   379→export function Dashboard() {
+   380→  const { dashboardData, dashboardLoading, setDashboardData, setDashboardLoading, setActiveTab, setActiveCheckInType, todayQuickLog, setTodayQuickLog, lastSyncTimestamp, userSettings, userName } = useAppStore()
+   381→  const [quickLogOpen, setQuickLogOpen] = useState(false)
+   382→  const [mood, setMood] = useState(5)
+   383→  const [energy, setEnergy] = useState(5)
+   384→  const [focus, setFocus] = useState(5)
+   385→  const [quickNote, setQuickNote] = useState('')
+   386→  const [submittingLog, setSubmittingLog] = useState(false)
+   387→  const [currentTime, setCurrentTime] = useState(new Date())
+   388→  const [strictModeWarning, setStrictModeWarning] = useState<string | null>(null)
+   389→  const [greetingKey, setGreetingKey] = useState(0)
+   390→  const [widgetSettings, setWidgetSettings] = useState<WidgetSetting[]>([])
+   391→  const [customizeOpen, setCustomizeOpen] = useState(false)
+   392→  const [aiNudge, setAiNudge] = useState<{ message: string; area: string; priority: string; action: string; actionTab: string } | null>(null)
+   393→  const [nudgeDismissed, setNudgeDismissed] = useState(false)
+   394→
+   395→  // Real-time clock - updates every second
+   396→  useEffect(() => {
+   397→    const timer = setInterval(() => {
+   398→      setCurrentTime(new Date())
+   399→    }, 1000)
+   400→    return () => clearInterval(timer)
+   401→  }, [])
+   402→
+   403→  // Greeting refresh every 60 seconds — forces re-evaluation of greeting/coaching
+   404→  useEffect(() => {
+   405→    const timer = setInterval(() => {
+   406→      setGreetingKey(prev => prev + 1)
+   407→    }, 60000)
+   408→    return () => clearInterval(timer)
+   409→  }, [])
+   410→
+   411→  // Re-fetch dashboard data on mount and when sync timestamp changes
+   412→  const fetchDashboard = useCallback(async () => {
+   413→    try {
+   414→      const res = await fetch('/api/dashboard')
+   415→      const data = await res.json()
+   416→      setDashboardData(data as DashboardData)
+   417→    } catch (err) {
+   418→      console.error('Failed to fetch dashboard:', err)
+   419→    } finally {
+   420→      setDashboardLoading(false)
+   421→    }
+   422→  }, [setDashboardData, setDashboardLoading])
+   423→
+   424→  useEffect(() => {
+   425→    fetchDashboard()
+   426→  }, [fetchDashboard, lastSyncTimestamp])
+   427→
+   428→  // Listen for dashboard refresh events from other components (mood log, chat check-ins)
+   429→  useEffect(() => {
+   430→    const handleRefresh = () => {
+   431→      setDashboardLoading(true)
+   432→      fetch('/api/dashboard')
+   433→        .then(res => res.json())
+   434→        .then(data => setDashboardData(data as DashboardData))
+   435→        .catch(err => console.error('Failed to refresh dashboard:', err))
+   436→        .finally(() => setDashboardLoading(false))
+   437→    }
+   438→    window.addEventListener('myos-refresh-dashboard', handleRefresh)
+   439→    return () => window.removeEventListener('myos-refresh-dashboard', handleRefresh)
+   440→  }, [setDashboardData, setDashboardLoading])
+   441→
+   442→  // Fetch widget settings
+   443→  useEffect(() => {
+   444→    const fetchWidgets = async () => {
+   445→      try {
+   446→        const res = await fetch('/api/dashboard/widgets')
+   447→        const data = await res.json()
+   448→        setWidgetSettings(data)
+   449→      } catch (err) {
+   450→        console.error('Failed to fetch widget settings:', err)
+   451→      }
+   452→    }
+   453→    fetchWidgets()
+   454→  }, [])
+   455→
+   456→  // Fetch AI nudge
+   457→  useEffect(() => {
+   458→    const fetchNudge = async () => {
+   459→      try {
+   460→        const res = await fetch('/api/ai-nudge')
+   461→        const data = await res.json()
+   462→        if (data.nudges && data.nudges.length > 0) {
+   463→          setAiNudge(data.nudges[0])
+   464→        }
+   465→      } catch {
+   466→        // Silent fail
+   467→      }
+   468→    }
+   469→    fetchNudge()
+   470→    const interval = setInterval(fetchNudge, 2 * 60 * 60 * 1000) // every 2 hours
+   471→    return () => clearInterval(interval)
+   472→  }, [])
+   473→
+   474→  const updateWidgetSettings = async (updates: { widgetId: string; visible?: boolean; order?: number; collapsed?: boolean }[]) => {
+   475→    try {
+   476→      const res = await fetch('/api/dashboard/widgets', {
+   477→        method: 'PUT',
+   478→        headers: { 'Content-Type': 'application/json' },
+   479→        body: JSON.stringify({ widgets: updates }),
+   480→      })
+   481→      const updated = await res.json()
+   482→      setWidgetSettings(updated)
+   483→    } catch (err) {
+   484→      console.error('Failed to update widget settings:', err)
+   485→    }
+   486→  }
+   487→
+   488→  const handleWidgetToggle = (widgetId: string, visible: boolean) => {
+   489→    updateWidgetSettings([{ widgetId, visible }])
+   490→  }
+   491→
+   492→  const handleWidgetCollapse = (widgetId: string, collapsed: boolean) => {
+   493→    updateWidgetSettings([{ widgetId, collapsed }])
+   494→  }
+   495→
+   496→  const handleWidgetMove = (widgetId: string, direction: 'up' | 'down') => {
+   497→    const sorted = [...widgetSettings].sort((a, b) => a.order - b.order)
+   498→    const idx = sorted.findIndex(w => w.widgetId === widgetId)
+   499→    if (idx === -1) return
+   500→    if (direction === 'up' && idx === 0) return
+   501→    if (direction === 'down' && idx === sorted.length - 1) return
+   502→    const swapIdx = direction === 'up' ? idx - 1 : idx + 1
+   503→    const updates = [
+   504→      { widgetId: sorted[idx].widgetId, order: sorted[swapIdx].order },
+   505→      { widgetId: sorted[swapIdx].widgetId, order: sorted[idx].order },
+   506→    ]
+   507→    updateWidgetSettings(updates)
+   508→  }
+   509→
+   510→  // Sort widget settings for rendering order
+   511→  const sortedWidgetSettings = [...widgetSettings].sort((a, b) => a.order - b.order)
+   512→
+   513→  if (dashboardLoading || !dashboardData) {
+   514→    return <DashboardSkeleton />
+   515→  }
+   516→
+   517→  const data = dashboardData as Record<string, unknown>
+   518→  const finSummary = data.financialSummary || {}
+   519→  const totalReceived = finSummary.weekReceived ?? finSummary.totalReceived ?? 0
+   520→  const totalSpent = finSummary.weekSpent ?? finSummary.totalSpent ?? 0
+   521→  const net = finSummary.weekNet ?? finSummary.net ?? 0
+   522→  const scores = data.todayScores ?? data.scores ?? null
+   523→  const nextCheckIn = data.nextCheckIn ?? null
+   524→  const goalStats = data.goalStats ?? { total: 0, completed: 0, inProgress: 0, notStarted: 0 }
+   525→  const taskStats = data.taskStats ?? { total: 0, completed: 0, inProgress: 0, notStarted: 0 }
+   526→  const activeAlerts = data.activeAlerts ?? data.activeDriftAlerts ?? []
+   527→  const recentCheckIns = data.recentCheckIns ?? []
+   528→  const streaks = (data.streaks ?? []) as StreakData[]
+   529→  const completedCheckInTypes = (data.completedCheckInTypes ?? []) as string[]
+   530→
+   531→  const goalCompletion = goalStats.total > 0 ? Math.round((goalStats.completed / goalStats.total) * 100) : 0
+   532→  const taskCompletion = taskStats.total > 0 ? Math.round((taskStats.completed / taskStats.total) * 100) : 0
+   533→
+   534→  const morningStreak = streaks.find(s => s.type === 'morning') || { currentStreak: 0, longestStreak: 0 }
+   535→  const eveningStreak = streaks.find(s => s.type === 'evening') || { currentStreak: 0, longestStreak: 0 }
+   536→  const overallStreak = streaks.find(s => s.type === 'overall') || { currentStreak: 0, longestStreak: 0 }
+   537→  const moodStreak = streaks.find(s => s.type === 'mood') || { currentStreak: 0, longestStreak: 0 }
+   538→
+   539→  // Today's wins - what the user has accomplished today
+   540→  const todaysWins = [
+   541→    { label: 'Morning Check-in', done: completedCheckInTypes.includes('morning') },
+   542→    { label: 'Midday Check-in', done: completedCheckInTypes.includes('midday') },
+   543→    { label: 'Evening Check-in', done: completedCheckInTypes.includes('evening') },
+   544→    { label: 'Quick Log', done: !!todayQuickLog },
+   545→  ]
+   546→  const winsCount = todaysWins.filter(w => w.done).length
+   547→
+   548→  // Smart greeting and prompt — greetingKey forces refresh every 60s
+   549→  // (greetingKey is incremented by a 60s interval in the useEffect above)
+   550→  const { greeting: smartGreetingText, coachingMessage, period } = getSmartGreeting(completedCheckInTypes, userName)
+   551→  void greetingKey // reference greetingKey so the 60s refresh triggers re-evaluation
+   552→  void period // period is used for debugging/logging if needed
+   553→  const smartPrompt = getSmartPrompt(completedCheckInTypes, currentTime, userName)
+   554→
+   555→  // Overdue nudges — recalculated every minute via greetingKey
+   556→  const overdueNudges = getOverdueNudges(completedCheckInTypes, currentTime)
+   557→
+   558→  // Countdown to window closing
+   559→  const windowCountdown = (() => {
+   560→    if (!smartPrompt.windowEnd) return null
+   561→    const diff = smartPrompt.windowEnd.getTime() - currentTime.getTime()
+   562→    return diff > 0 ? diff : 0
+   563→  })()
+   564→
+   565→  // Enhance coaching message with streak context
+   566→  const streakEnhancedCoaching = (() => {
+   567→    const allCheckInsDone = completedCheckInTypes.length >= 3
+   568→    let enhanced = coachingMessage
+   569→    if (overallStreak.currentStreak >= 7 && overallStreak.currentStreak < 14) {
+   570→      return enhanced + ` You're on a ${overallStreak.currentStreak}-day streak. Keep it going.`
+   571→    }
+   572→    if (overallStreak.currentStreak >= 14 && overallStreak.currentStreak < 30) {
+   573→      return enhanced + ` ${overallStreak.currentStreak}-day streak on fire. Don't break it now.`
+   574→    }
+   575→    if (overallStreak.currentStreak >= 30) {
+   576→      return enhanced + ` ${overallStreak.currentStreak}-day streak. You're unstoppable. Protect it.`
+   577→    }
+   578→    if (allCheckInsDone) {
+   579→      return enhanced + ' All check-ins done. Keep the momentum.'
+   580→    }
+   581→    return enhanced
+   582→  })()
+   583→
+   584→  // Timezone display
+   585→  const tzAbbr = getTimezoneAbbr()
+   586→
+   587→  const handleStartCheckIn = (type: string) => {
+   588→    // Check strict mode before navigating
+   589→    const settings = userSettings
+   590→    if (settings?.checkInWindows?.strictMode && ['morning', 'evening'].includes(type)) {
+   591→      const now = new Date()
+   592→      const currentMinutes = now.getHours() * 60 + now.getMinutes()
+   593→
+   594→      if (type === 'morning' && settings.checkInWindows.morningEnabled) {
+   595→        const [h, m] = settings.checkInWindows.morningTime.split(':').map(Number)
+   596→        const target = h * 60 + m
+   597→        const windowMin = Math.max(0, target - settings.checkInWindows.windowMinutes)
+   598→        const windowMax = target + settings.checkInWindows.windowMinutes
+   599→        if (currentMinutes < windowMin || currentMinutes > windowMax) {
+   600→          // Strict mode blocked - don't navigate, show inline message
+   601→          setStrictModeWarning(`${type} check-in window is closed. Opens at ${formatMinutesToTime(windowMin)}. Strict mode is ON.`)
+   602→          setTimeout(() => setStrictModeWarning(null), 5000)
+   603→          return
+   604→        }
+   605→      }
+   606→
+   607→      if (type === 'evening' && settings.checkInWindows.eveningEnabled) {
+   608→        const [h, m] = settings.checkInWindows.eveningTime.split(':').map(Number)
+   609→        const target = h * 60 + m
+   610→        const windowMin = Math.max(0, target - settings.checkInWindows.windowMinutes)
+   611→        const windowMax = target + settings.checkInWindows.windowMinutes
+   612→        if (currentMinutes < windowMin || currentMinutes > windowMax) {
+   613→          setStrictModeWarning(`${type} check-in window is closed. Opens at ${formatMinutesToTime(windowMin)}. Strict mode is ON.`)
+   614→          setTimeout(() => setStrictModeWarning(null), 5000)
+   615→          return
+   616→        }
+   617→      }
+   618→    }
+   619→
+   620→    setActiveCheckInType(type)
+   621→    setActiveTab('chat')
+   622→  }
+   623→
+   624→  const handleQuickLog = async () => {
+   625→    setSubmittingLog(true)
+   626→    try {
+   627→      const res = await fetch('/api/quicklog', {
+   628→        method: 'POST',
+   629→        headers: { 'Content-Type': 'application/json' },
+   630→        body: JSON.stringify({ mood, energy, focus, note: quickNote }),
+   631→      })
+   632→      const result = await res.json()
+   633→      if (result.log) {
+   634→        setTodayQuickLog(result.log)
+   635→      }
+   636→      setQuickLogOpen(false)
+   637→      setQuickNote('')
+   638→    } catch (err) {
+   639→      console.error('Quick log error:', err)
+   640→    } finally {
+   641→      setSubmittingLog(false)
+   642→    }
+   643→  }
+   644→
+   645→  const isCheckInCompleted = (type: string) => completedCheckInTypes.includes(type)
+   646→
+   647→  // Determine current expected check-in label
+   648→  const getCurrentExpected = () => {
+   649→    const hour = currentTime.getHours()
+   650→    const day = currentTime.getDay()
+   651→    let currentExpectedType = nextCheckIn?.type || 'morning'
+   652→    let currentExpectedTime = nextCheckIn?.time || '5:00 AM'
+   653→    let currentExpectedLabel = 'Morning Alignment'
+   654→
+   655→    if (hour >= 4 && hour < 12 && !completedCheckInTypes.includes('morning')) {
+   656→      currentExpectedType = 'morning'
+   657→      currentExpectedTime = '5:00 AM'
+   658→      currentExpectedLabel = 'Morning Alignment'
+   659→    } else if (hour >= 12 && hour < 16 && !completedCheckInTypes.includes('midday')) {
+   660→      currentExpectedType = 'midday'
+   661→      currentExpectedTime = '12:00 PM'
+   662→      currentExpectedLabel = 'Midday Correction'
+   663→    } else if (hour >= 16 && hour < 18 && !completedCheckInTypes.includes('midday')) {
+   664→      currentExpectedType = 'midday'
+   665→      currentExpectedTime = '12:00 PM'
+   666→      currentExpectedLabel = 'Midday Correction'
+   667→    } else if (hour >= 16 && hour < 22 && !completedCheckInTypes.includes('evening')) {
+   668→      currentExpectedType = 'evening'
+   669→      currentExpectedTime = '8:30 PM'
+   670→      currentExpectedLabel = 'Evening Review'
+   671→    } else if (day === 5 && hour >= 16 && !completedCheckInTypes.includes('friday')) {
+   672→      currentExpectedType = 'friday'
+   673→      currentExpectedTime = '4:30 PM'
+   674→      currentExpectedLabel = 'Friday Strategic Review'
+   675→    } else if (day === 0 && hour >= 18 && !completedCheckInTypes.includes('sunday')) {
+   676→      currentExpectedType = 'sunday'
+   677→      currentExpectedTime = '6:00 PM'
+   678→      currentExpectedLabel = 'Sunday Planning'
+   679→    } else if (hour >= 22 && !completedCheckInTypes.includes('evening')) {
+   680→      currentExpectedType = 'evening'
+   681→      currentExpectedTime = '8:30 PM'
+   682→      currentExpectedLabel = 'Evening Review'
+   683→    }
+   684→
+   685→    return { currentExpectedType, currentExpectedTime, currentExpectedLabel }
+   686→  }
+   687→
+   688→  const { currentExpectedType, currentExpectedTime, currentExpectedLabel } = getCurrentExpected()
+   689→  const isCurrentCompleted = isCheckInCompleted(currentExpectedType)
+   690→
+   691→  return (
+   692→    <div className="space-y-6">
+   693→      {/* AI Proactive Nudge Banner */}
+   694→      {aiNudge && !nudgeDismissed && (
+   695→        <div className={`flex items-start gap-3 p-4 rounded-xl border shadow-sm animate-slow-fade-in ${
+   696→          aiNudge.priority === 'high'
+   697→            ? 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800'
+   698→            : 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-900'
+   699→        }`}>
+   700→          <div className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
+   701→            aiNudge.priority === 'high' ? 'bg-red-100 dark:bg-red-900/50' : 'bg-red-100 dark:bg-red-900/40'
+   702→          }`}>
+   703→            <Lightbulb className={`h-4 w-4 ${aiNudge.priority === 'high' ? 'text-red-600' : 'text-red-600'}`} />
+   704→          </div>
+   705→          <div className="flex-1 min-w-0">
+   706→            <p className={`text-sm font-medium ${aiNudge.priority === 'high' ? 'text-red-800 dark:text-red-300' : 'text-red-800 dark:text-red-300'}`}>
+   707→              AI Coach Nudge
+   708→            </p>
+   709→            <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1 leading-relaxed">{aiNudge.message}</p>
+   710→            <button
+   711→              onClick={() => {
+   712→                setActiveTab(aiNudge.actionTab as any)
+   713→                setNudgeDismissed(true)
+   714→              }}
+   715→              className="text-xs font-medium text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 mt-2.5 inline-flex items-center gap-1"
+   716→            >
+   717→              {aiNudge.action} <ArrowRight className="h-3 w-3" />
+   718→            </button>
+   719→          </div>
+   720→          <button
+   721→            onClick={() => setNudgeDismissed(true)}
+   722→            className="shrink-0 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
+   723→          >
+   724→            <X className="h-4 w-4" />
+   725→          </button>
+   726→        </div>
+   727→      )}
+   728→
+   729→      {/* Dashboard Customize Panel */}
+   730→      {customizeOpen && (
+   731→        <Card className="border-red-200 dark:border-red-900/30 shadow-md">
+   732→          <CardHeader className="pb-3">
+   733→            <div className="flex items-center justify-between">
+   734→              <div className="flex items-center gap-2">
+   735→                <Settings2 className="h-4 w-4 text-red-500" />
+   736→                <CardTitle className="text-sm">Customize Dashboard</CardTitle>
+   737→              </div>
+   738→              <Button variant="ghost" size="sm" className="text-xs h-7 px-2" onClick={() => setCustomizeOpen(false)}>
+   739→                Done
+   740→              </Button>
+   741→            </div>
+   742→          </CardHeader>
+   743→          <CardContent className="pt-0">
+   744→            <div className="space-y-2">
+   745→              {sortedWidgetSettings.map((w, idx) => (
+   746→                <div key={w.widgetId} className="flex items-center gap-2 p-2 rounded-lg bg-neutral-50 dark:bg-neutral-800/50">
+   747→                  <div className="flex flex-col gap-0.5">
+   748→                    <button
+   749→                      onClick={() => handleWidgetMove(w.widgetId, 'up')}
+   750→                      disabled={idx === 0}
+   751→                      className="p-0.5 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 disabled:opacity-20"
+   752→                    >
+   753→                      <ChevronUp className="h-3 w-3" />
+   754→                    </button>
+   755→                    <button
+   756→                      onClick={() => handleWidgetMove(w.widgetId, 'down')}
+   757→                      disabled={idx === sortedWidgetSettings.length - 1}
+   758→                      className="p-0.5 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 disabled:opacity-20"
+   759→                    >
+   760→                      <ChevronDown className="h-3 w-3" />
+   761→                    </button>
+   762→                  </div>
+   763→                  <span className="text-sm flex-shrink-0">{WIDGET_LABELS[w.widgetId]?.icon}</span>
+   764→                  <span className="text-xs font-medium flex-1">{WIDGET_LABELS[w.widgetId]?.label || w.widgetId}</span>
+   765→                  <button
+   766→                    onClick={() => handleWidgetCollapse(w.widgetId, !w.collapsed)}
+   767→                    className={`p-1 rounded transition-colors ${w.collapsed ? 'text-red-500 hover:text-red-600' : 'text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300'}`}
+   768→                    title={w.collapsed ? 'Expand' : 'Collapse'}
+   769→                  >
+   770→                    <ChevronDownSquare className="h-3.5 w-3.5" />
+   771→                  </button>
+   772→                  <button
+   773→                    onClick={() => handleWidgetToggle(w.widgetId, !w.visible)}
+   774→                    className={`p-1 rounded transition-colors ${w.visible ? 'text-red-500 hover:text-red-600' : 'text-neutral-300 dark:text-neutral-600 hover:text-neutral-400'}`}
+   775→                    title={w.visible ? 'Hide' : 'Show'}
+   776→                  >
+   777→                    {w.visible ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+   778→                  </button>
+   779→                </div>
+   780→              ))}
+   781→            </div>
+   782→          </CardContent>
+   783→        </Card>
+   784→      )}
+   785→
+   786→      {/* Greeting Hero Card */}
+   787→      <motion.div
+   788→        initial={{ opacity: 0, y: -6 }}
+   789→        animate={{ opacity: 1, y: 0 }}
+   790→        transition={{ duration: 0.7, ease: 'easeOut' }}
+   791→        className={`relative overflow-hidden rounded-2xl bg-gradient-to-br from-red-600 via-red-500 to-rose-400 p-6 text-white mb-6 shadow-lg shadow-red-600/20 ${
+   792→          smartPrompt.urgency === 'critical' ? 'ring-2 ring-rose-400 ring-offset-2 ring-offset-white dark:ring-offset-neutral-900' : ''
+   793→        }`}>
+   794→        {/* Decorative background elements */}
+   795→        <div className="absolute -right-6 -top-6 w-24 h-24 bg-white/10 rounded-full" />
+   796→        <div className="absolute -right-2 -bottom-8 w-32 h-32 bg-white/5 rounded-full" />
+   797→
+   798→        <div className="relative">
+   799→          {/* Top row: greeting + status badges */}
+   800→          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+   801→            <h2 className="text-xl md:text-2xl font-bold">{smartGreetingText}</h2>
+   802→            <div className="flex items-center gap-2">
+   803→              {/* Real-time clock with timezone */}
+   804→              <div className="flex items-center gap-1.5 bg-white/15 rounded-full px-3 py-1.5 backdrop-blur-sm">
+   805→                <Clock className="h-4 w-4 text-white/80" />
+   806→                <span className="text-sm font-mono text-white/90 tracking-wide whitespace-nowrap">{formatTime(currentTime)}</span>
+   807→                <span className="text-[10px] text-white/60 font-medium ml-0.5">{tzAbbr}</span>
+   808→              </div>
+   809→              {/* Streak badge */}
+   810→              <div className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 backdrop-blur-sm transition-all ${
+   811→                overallStreak.currentStreak >= 7 ? 'bg-white/25' :
+   812→                overallStreak.currentStreak >= 3 ? 'bg-white/20' :
+   813→                'bg-white/15'
+   814→              }`}>
+   815→                <Flame className="h-4 w-4 text-yellow-200 animate-slow-pulse" />
+   816→                <span className="text-sm font-bold" key={`streak-${overallStreak.currentStreak}`}>{overallStreak.currentStreak}d</span>
+   817→              </div>
+   818→              {/* Customize button */}
+   819→              <button
+   820→                onClick={() => setCustomizeOpen(!customizeOpen)}
+   821→                className="flex items-center gap-1 bg-white/15 rounded-full px-2.5 py-1.5 backdrop-blur-sm hover:bg-white/25 transition-colors"
+   822→                title="Customize Dashboard"
+   823→              >
+   824→                <Settings2 className="h-4 w-4 text-white/80" />
+   825→              </button>
+   826→            </div>
+   827→          </div>
+   828→
+   829→          {/* Date display */}
+   830→          <div className="flex items-center gap-2 mt-1.5 mb-3">
+   831→            <span className="text-xs text-white/60">
+   832→              {currentTime.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+   833→            </span>
+   834→          </div>
+   835→
+   836→          {/* Coaching Message */}
+   837→          <p className="text-sm text-white/80 mt-1">{streakEnhancedCoaching}</p>
+   838→
+   839→          {/* CTA for pending check-in */}
+   840→          {smartPrompt.title !== 'Stay Aligned' && (
+   841→            <button
+   842→              onClick={() => setActiveTab('chat')}
+   843→              className="mt-3 bg-white/20 hover:bg-white/30 text-white text-xs font-medium px-4 py-2 rounded-full transition-colors"
+   844→            >
+   845→              Start your check-in →
+   846→            </button>
+   847→          )}
+   848→
+   849→          {/* Smart prompt nudge */}
+   850→          <div className={`mt-4 rounded-xl p-3 ${
+   851→            smartPrompt.urgency === 'critical' ? 'bg-white/20' :
+   852→            smartPrompt.urgency === 'high' ? 'bg-white/15' :
+   853→            'bg-white/10'
+   854→          }`}>
+   855→            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+   856→              <div className="flex-1">
+   857→                <div className="flex items-center gap-2 mb-1">
+   858→                  {smartPrompt.urgency === 'critical' && <AlertCircle className="h-4 w-4 text-white shrink-0" />}
+   859→                  {smartPrompt.urgency === 'high' && <AlertTriangle className="h-4 w-4 text-white/90 shrink-0" />}
+   860→                  {smartPrompt.urgency === 'normal' && <Sun className="h-4 w-4 text-white/80 shrink-0" />}
+   861→                  <span className="text-sm font-semibold">{smartPrompt.title}</span>
+   862→                </div>
+   863→                <p className="text-xs sm:text-sm text-white/80 leading-relaxed">{smartPrompt.description}</p>
+   864→              </div>
+   865→              {/* Countdown timer */}
+   866→              {windowCountdown !== null && windowCountdown > 0 && (
+   867→                <div className={`sm:ml-3 shrink-0 flex items-center gap-1.5 rounded-full px-2.5 py-1 ${
+   868→                  windowCountdown < 30 * 60 * 1000
+   869→                    ? 'bg-white/25'
+   870→                    : 'bg-white/10'
+   871→                }`}>
+   872→                  <Timer className="h-3 w-3 text-white/80" />
+   873→                  <span className="text-[10px] font-mono text-white/90">{formatCountdown(windowCountdown)}</span>
+   874→                </div>
+   875→              )}
+   876→            </div>
+   877→          </div>
+   878→        </div>
+   879→      </motion.div>
+   880→
+   881→      {/* Today's Discipline Score */}
+   882→      {(() => {
+   883→        const morningDone = completedCheckInTypes.includes('morning')
+   884→        const middayDone = completedCheckInTypes.includes('midday')
+   885→        const eveningDone = completedCheckInTypes.includes('evening')
+   886→        const moodDone = !!todayQuickLog
+   887→        const streakBonus = overallStreak.currentStreak >= 7
+   888→        const disciplineScore = (morningDone ? 25 : 0) + (middayDone ? 25 : 0) + (eveningDone ? 25 : 0) + (moodDone ? 15 : 0) + (streakBonus ? 10 : 0)
+   889→        const grade = disciplineScore >= 90 ? 'A' : disciplineScore >= 75 ? 'B' : disciplineScore >= 60 ? 'C' : disciplineScore >= 40 ? 'D' : 'F'
+   890→        const gradeColor = grade === 'A' ? 'text-red-600' : grade === 'B' ? 'text-red-500' : grade === 'C' ? 'text-rose-500' : grade === 'D' ? 'text-rose-600' : 'text-red-800'
+   891→        const tagline = grade === 'A' ? "Outstanding discipline today. You're aligned." : grade === 'B' ? 'Strong day. Keep pushing for A.' : grade === 'C' ? 'Average. You have more in the tank.' : grade === 'D' ? 'Below standard. Time to course-correct.' : 'Drift mode active. Get back on track NOW.'
+   892→        return (
+   893→          <div className="mb-6">
+   894→            <motion.div
+   895→              initial={{ opacity: 0, y: 8 }}
+   896→              animate={{ opacity: 1, y: 0 }}
+   897→              transition={{ duration: 0.5 }}
+   898→              className="bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-100 dark:border-neutral-800 p-5 shadow-sm"
+   899→            >
+   900→              <div className="flex items-center justify-between mb-3">
+   901→                <h3 className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">Today's Discipline Score</h3>
+   902→                <div className="flex items-center gap-2">
+   903→                  <span className={`text-3xl font-black ${gradeColor}`}>{grade}</span>
+   904→                  <span className="text-sm font-medium text-neutral-500 dark:text-neutral-400">{disciplineScore} / 100</span>
+   905→                </div>
+   906→              </div>
+   907→              <Progress value={disciplineScore} className="h-3 mb-2" />
+   908→              <p className="text-xs text-neutral-500 dark:text-neutral-400 mb-4">{tagline}</p>
+   909→              <div className="grid grid-cols-4 gap-2">
+   910→                {[
+   911→                  { label: 'Morning', done: morningDone },
+   912→                  { label: 'Midday', done: middayDone },
+   913→                  { label: 'Evening', done: eveningDone },
+   914→                  { label: 'Mood Log', done: moodDone },
+   915→                ].map((item) => (
+   916→                  <div key={item.label} className="flex flex-col items-center gap-1">
+   917→                    {item.done
+   918→                      ? <CheckCircle2 className="h-5 w-5 text-red-500" />
+   919→                      : <Circle className="h-5 w-5 text-neutral-300 dark:text-neutral-600" />
+   920→                    }
+   921→                    <span className="text-[10px] text-neutral-500 dark:text-neutral-400 font-medium">{item.label}</span>
+   922→                  </div>
+   923→                ))}
+   924→              </div>
+   925→            </motion.div>
+   926→          </div>
+   927→        )
+   928→      })()}
+   929→
+   930→      {/* Smart Nudge Banners — overdue check-ins with escalating urgency */}
+   931→      <WidgetSection widgetId="checkin" widgetSettings={widgetSettings}>
+   932→        {overdueNudges.length > 0 && (
+   933→        <div className="space-y-2">
+   934→          {overdueNudges.map((nudge) => (
+   935→            <div
+   936→              key={nudge.type}
+   937→              className={`rounded-xl p-4 border-2 ${
+   938→                nudge.level === 'critical' ? 'nudge-critical' :
+   939→                nudge.level === 'urgent' ? 'nudge-urgent' :
+   940→                'nudge-warning'
+   941→              }`}
+   942→            >
+   943→              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+   944→                <div className="flex items-start gap-3 flex-1 min-w-0">
+   945→                  <div className="shrink-0 mt-0.5">
+   946→                    {nudge.level === 'critical' ? (
+   947→                      <BellRing className="h-5 w-5" />
+   948→                    ) : (
+   949→                      <Bell className="h-5 w-5" />
+   950→                    )}
+   951→                  </div>
+   952→                  <div className="min-w-0">
+   953→                    <div className="flex items-center gap-2 mb-0.5">
+   954→                      <span className="text-sm font-bold">{nudge.label}</span>
+   955→                      <Badge className={`text-[9px] shrink-0 ${
+   956→                        nudge.level === 'critical' ? 'bg-red-600 text-white' :
+   957→                        nudge.level === 'urgent' ? 'bg-red-500 text-white' :
+   958→                        'bg-red-400 text-white'
+   959→                      }`}>
+   960→                        {nudge.level === 'critical' ? 'CRITICAL' : nudge.level === 'urgent' ? 'URGENT' : 'WARNING'}
+   961→                      </Badge>
+   962→                    </div>
+   963→                    <p className="text-xs opacity-90">{nudge.message}</p>
+   964→                  </div>
+   965→                </div>
+   966→                <Button
+   967→                  size="sm"
+   968→                  className={`w-full sm:w-auto sm:shrink-0 text-white font-bold text-xs px-4 py-2.5 sm:py-1.5 ${
+   969→                    nudge.level === 'critical' ? 'bg-red-700 hover:bg-red-800' :
+   970→                    nudge.level === 'urgent' ? 'bg-red-600 hover:bg-red-700' :
+   971→                    'bg-red-500 hover:bg-red-600'
+   972→                  }`}
+   973→                  onClick={() => handleStartCheckIn(nudge.type)}
+   974→                >
+   975→                  Do It Now
+   976→                  <ArrowRight className="ml-1 h-3 w-3" />
+   977→                </Button>
+   978→              </div>
+   979→            </div>
+   980→          ))}
+   981→        </div>
+   982→        )}
+   983→      </WidgetSection>
+   984→
+   985→      {/* Streaks Grid - subtle gradient backgrounds for active streaks */}
+   986→      <WidgetSection widgetId="streaks" widgetSettings={widgetSettings}>
+   987→      <motion.div
+   988→        initial={{ opacity: 0, y: 8 }}
+   989→        animate={{ opacity: 1, y: 0 }}
+   990→        transition={{ duration: 0.7, delay: 0.1, ease: 'easeOut' }}
+   991→        className="grid grid-cols-2 sm:grid-cols-4 gap-3"
+   992→      >
+   993→        <Card className={`relative overflow-hidden h-full ${
+   994→          morningStreak.currentStreak >= 7 ? 'bg-gradient-to-br from-red-100 to-red-200 dark:from-red-950/40 dark:to-red-950/30 border-red-300 dark:border-red-800' :
+   995→          morningStreak.currentStreak >= 3 ? 'bg-gradient-to-br from-red-50 to-red-100 dark:from-red-950/30 dark:to-red-950/20 border-red-300 dark:border-red-800' :
+   996→          morningStreak.currentStreak >= 1 ? 'bg-gradient-to-br from-red-50/50 to-neutral-50 dark:from-red-950/20 dark:to-neutral-900 border-red-200 dark:border-red-900' :
+   997→          'bg-gradient-to-br from-neutral-50 to-neutral-100/50 dark:from-neutral-900 dark:to-neutral-800 border-neutral-200 dark:border-neutral-800'
+   998→        }`}>
+   999→          <CardContent className="p-4 text-center">
+  1000→            <Sun className={`h-5 w-5 mx-auto mb-1.5 ${morningStreak.currentStreak >= 3 ? 'text-red-500' : morningStreak.currentStreak >= 1 ? 'text-red-400' : 'text-neutral-500'}`} />
+  1001→            <p className="text-xl font-bold text-neutral-800 dark:text-neutral-200 leading-tight" key={`m-${morningStreak.currentStreak}`}>{morningStreak.currentStreak}</p>
+  1002→            <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1 leading-snug">Morning Streak</p>
+  1003→          </CardContent>
+  1004→        </Card>
+  1005→        <Card className={`relative overflow-hidden h-full ${
+  1006→          eveningStreak.currentStreak >= 7 ? 'bg-gradient-to-br from-red-100 to-red-200 dark:from-red-950/40 dark:to-red-950/30 border-red-300 dark:border-red-800' :
+  1007→          eveningStreak.currentStreak >= 3 ? 'bg-gradient-to-br from-red-50 to-red-100 dark:from-red-950/30 dark:to-red-950/20 border-red-300 dark:border-red-800' :
+  1008→          eveningStreak.currentStreak >= 1 ? 'bg-gradient-to-br from-red-50/50 to-neutral-50 dark:from-red-950/20 dark:to-neutral-900 border-red-200 dark:border-red-900' :
+  1009→          'bg-gradient-to-br from-neutral-50 to-neutral-100/50 dark:from-neutral-900 dark:to-neutral-800 border-neutral-200 dark:border-neutral-800'
+  1010→        }`}>
+  1011→          <CardContent className="p-4 text-center">
+  1012→            <Moon className={`h-5 w-5 mx-auto mb-1.5 ${eveningStreak.currentStreak >= 3 ? 'text-red-500' : eveningStreak.currentStreak >= 1 ? 'text-red-400' : 'text-neutral-500'}`} />
+  1013→            <p className="text-xl font-bold text-neutral-800 dark:text-neutral-200 leading-tight" key={`e-${eveningStreak.currentStreak}`}>{eveningStreak.currentStreak}</p>
+  1014→            <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1 leading-snug">Evening Streak</p>
+  1015→          </CardContent>
+  1016→        </Card>
+  1017→        <Card className={`relative overflow-hidden h-full ${
+  1018→          overallStreak.currentStreak >= 7 ? 'bg-gradient-to-br from-red-100 to-red-200 dark:from-red-950/40 dark:to-red-950/30 border-red-300 dark:border-red-800' :
+  1019→          overallStreak.currentStreak >= 3 ? 'bg-gradient-to-br from-red-50 to-red-100 dark:from-red-950/30 dark:to-red-950/20 border-red-300 dark:border-red-800' :
+  1020→          overallStreak.currentStreak >= 1 ? 'bg-gradient-to-br from-red-50/50 to-neutral-50 dark:from-red-950/20 dark:to-neutral-900 border-red-200 dark:border-red-900' :
+  1021→          'bg-gradient-to-br from-neutral-50 to-neutral-100/50 dark:from-neutral-900 dark:to-neutral-800 border-neutral-200 dark:border-neutral-800'
+  1022→        }`}>
+  1023→          <CardContent className="p-4 text-center">
+  1024→            <Target className={`h-5 w-5 mx-auto mb-1.5 ${overallStreak.currentStreak >= 3 ? 'text-red-500' : overallStreak.currentStreak >= 1 ? 'text-red-400' : 'text-neutral-500'}`} />
+  1025→            <p className="text-xl font-bold text-neutral-800 dark:text-neutral-200 leading-tight" key={`o-${overallStreak.currentStreak}`}>{overallStreak.currentStreak}</p>
+  1026→            <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1 leading-snug">Check-in Streak</p>
+  1027→          </CardContent>
+  1028→        </Card>
+  1029→        <Card className={`relative overflow-hidden h-full ${
+  1030→          moodStreak.currentStreak >= 7 ? 'bg-gradient-to-br from-red-100 to-red-200 dark:from-red-950/40 dark:to-red-950/30 border-red-300 dark:border-red-800' :
+  1031→          moodStreak.currentStreak >= 3 ? 'bg-gradient-to-br from-red-50 to-red-100 dark:from-red-950/30 dark:to-red-950/20 border-red-300 dark:border-red-800' :
+  1032→          moodStreak.currentStreak >= 1 ? 'bg-gradient-to-br from-red-50/50 to-neutral-50 dark:from-red-950/20 dark:to-neutral-900 border-red-200 dark:border-red-900' :
+  1033→          'bg-gradient-to-br from-neutral-50 to-neutral-100/50 dark:from-neutral-900 dark:to-neutral-800 border-neutral-200 dark:border-neutral-800'
+  1034→        }`}>
+  1035→          <CardContent className="p-4 text-center">
+  1036→            <Brain className={`h-5 w-5 mx-auto mb-1.5 ${moodStreak.currentStreak >= 3 ? 'text-red-500' : moodStreak.currentStreak >= 1 ? 'text-red-400' : 'text-neutral-500'}`} />
+  1037→            <p className="text-xl font-bold text-neutral-800 dark:text-neutral-200 leading-tight" key={`mo-${moodStreak.currentStreak}`}>{moodStreak.currentStreak}</p>
+  1038→            <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1 leading-snug">Mood Streak</p>
+  1039→          </CardContent>
+  1040→        </Card>
+  1041→      </motion.div>
+  1042→
+  1043→      {/* Today's Wins */}
+  1044→      <Card className="border-neutral-200 dark:border-neutral-800 shadow-sm">
+  1045→        <CardContent className="p-4">
+  1046→          <div className="flex items-center justify-between mb-3">
+  1047→            <div className="flex items-center gap-2">
+  1048→              <Trophy className="h-4 w-4 text-neutral-500" />
+  1049→              <span className="text-sm font-medium text-neutral-800 dark:text-neutral-200">Today&apos;s Wins</span>
+  1050→            </div>
+  1051→            <Badge variant="secondary" className="text-[10px] bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 border-neutral-200 dark:border-neutral-700">
+  1052→              {winsCount}/{todaysWins.length}
+  1053→            </Badge>
+  1054→          </div>
+  1055→          <div className="grid grid-cols-2 gap-3">
+  1056→            {todaysWins.map((win) => (
+  1057→              <div
+  1058→                key={win.label}
+  1059→                className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
+  1060→                  win.done ? 'bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900' : 'bg-neutral-50 dark:bg-neutral-800/50'
+  1061→                }`}
+  1062→              >
+  1063→                {win.done ? (
+  1064→                  <CheckCircle2 className="h-4 w-4 text-red-600 dark:text-red-400 shrink-0" />
+  1065→                ) : (
+  1066→                  <Circle className="h-4 w-4 text-neutral-300 dark:text-neutral-600 shrink-0" />
+  1067→                )}
+  1068→                <span className={`text-xs ${win.done ? 'text-red-700 dark:text-red-300 font-medium' : 'text-neutral-400 dark:text-neutral-500'}`}>
+  1069→                  {win.label}
+  1070→                </span>
+  1071→              </div>
+  1072→            ))}
+  1073→          </div>
+  1074→        </CardContent>
+  1075→      </Card>
+  1076→      </WidgetSection>
+  1077→
+  1078→      {/* Quick Log — Daily Check-In */}
+  1079→      <WidgetSection widgetId="mood" widgetSettings={widgetSettings}>
+  1080→      <motion.div
+  1081→        initial={{ opacity: 0, y: 8 }}
+  1082→        animate={{ opacity: 1, y: 0 }}
+  1083→        transition={{ duration: 0.7, delay: 0.15, ease: 'easeOut' }}
+  1084→      >
+  1085→      <Card className="border-neutral-200 dark:border-neutral-800 shadow-sm">
+  1086→        <CardContent className="p-4">
+  1087→          {todayQuickLog && !quickLogOpen ? (
+  1088→            <div>
+  1089→              <div className="flex items-center justify-between mb-3">
+  1090→                <div>
+  1091→                  <span className="text-sm font-semibold text-neutral-800 dark:text-neutral-200">Daily Check-In</span>
+  1092→                  <span className="text-[10px] text-neutral-400 dark:text-neutral-500 ml-2">Mood, Energy, Focus</span>
+  1093→                </div>
+  1094→                <div className="flex items-center gap-2">
+  1095→                  <CheckCircle2 className="h-4 w-4 text-red-500" />
+  1096→                  <Button
+  1097→                    variant="ghost"
+  1098→                    size="sm"
+  1099→                    className="text-xs text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/30 h-7 px-2"
+  1100→                    onClick={() => setQuickLogOpen(true)}
+  1101→                  >
+  1102→                    <RotateCcw className="h-3 w-3 mr-1" />
+  1103→                    Log Again
+  1104→                  </Button>
+  1105→                </div>
+  1106→              </div>
+  1107→              <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mb-3">Log anytime. Morning recommended. Track your baseline.</p>
+  1108→              <div className="grid grid-cols-3 gap-3">
+  1109→                <div className="text-center">
+  1110→                  <Heart className="h-4 w-4 text-red-400 mx-auto mb-1" />
+  1111→                  <p className="text-lg font-bold text-neutral-800 dark:text-neutral-200">{todayQuickLog.mood}/10</p>
+  1112→                  <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5">Mood</p>
+  1113→                </div>
+  1114→                <div className="text-center">
+  1115→                  <Zap className="h-4 w-4 text-red-400 mx-auto mb-1" />
+  1116→                  <p className="text-lg font-bold text-neutral-800 dark:text-neutral-200">{todayQuickLog.energy}/10</p>
+  1117→                  <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5">Energy</p>
+  1118→                </div>
+  1119→                <div className="text-center">
+  1120→                  <Brain className="h-4 w-4 text-red-400 mx-auto mb-1" />
+  1121→                  <p className="text-lg font-bold text-neutral-800 dark:text-neutral-200">{todayQuickLog.focus}/10</p>
+  1122→                  <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5">Focus</p>
+  1123→                </div>
+  1124→              </div>
+  1125→            </div>
+  1126→          ) : quickLogOpen ? (
+  1127→            <div className="space-y-4">
+  1128→              <div className="flex items-center justify-between">
+  1129→                <div>
+  1130→                  <span className="text-sm font-semibold text-neutral-800 dark:text-neutral-200">Daily Check-In</span>
+  1131→                  <span className="text-[10px] text-neutral-400 dark:text-neutral-500 ml-2">Mood, Energy, Focus</span>
+  1132→                </div>
+  1133→                <button onClick={() => setQuickLogOpen(false)} className="text-xs text-neutral-400 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-300">Cancel</button>
+  1134→              </div>
+  1135→              <p className="text-[10px] text-neutral-400 dark:text-neutral-500">Log anytime. Morning recommended. Track your baseline.</p>
+  1136→              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+  1137→                <div className="text-center">
+  1138→                  <Heart className="h-5 w-5 text-red-400 mx-auto mb-2" />
+  1139→                  <p className="text-xs text-neutral-500 dark:text-neutral-400 mb-1">Mood: {mood}</p>
+  1140→                  <Slider value={[mood]} onValueChange={([v]) => setMood(v)} min={1} max={10} step={1} className="w-full" />
+  1141→                </div>
+  1142→                <div className="text-center">
+  1143→                  <Zap className="h-5 w-5 text-red-400 mx-auto mb-2" />
+  1144→                  <p className="text-xs text-neutral-500 dark:text-neutral-400 mb-1">Energy: {energy}</p>
+  1145→                  <Slider value={[energy]} onValueChange={([v]) => setEnergy(v)} min={1} max={10} step={1} className="w-full" />
+  1146→                </div>
+  1147→                <div className="text-center">
+  1148→                  <Brain className="h-5 w-5 text-red-400 mx-auto mb-2" />
+  1149→                  <p className="text-xs text-neutral-500 dark:text-neutral-400 mb-1">Focus: {focus}</p>
+  1150→                  <Slider value={[focus]} onValueChange={([v]) => setFocus(v)} min={1} max={10} step={1} className="w-full" />
+  1151→                </div>
+  1152→              </div>
+  1153→              <Button onClick={handleQuickLog} disabled={submittingLog} className="w-full bg-neutral-900 hover:bg-neutral-800 text-white">
+  1154→                {submittingLog ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+  1155→                Log It
+  1156→              </Button>
+  1157→            </div>
+  1158→          ) : (
+  1159→            <div className="flex flex-col gap-3">
+  1160→              <div className="flex items-center justify-between">
+  1161→                <span className="text-sm font-semibold text-neutral-800 dark:text-neutral-200">Daily Check-In</span>
+  1162→                <span className="text-[10px] text-neutral-400 dark:text-neutral-500">Mood, Energy, Focus</span>
+  1163→              </div>
+  1164→              <p className="text-[10px] text-neutral-400 dark:text-neutral-500">Log anytime. Morning recommended. Track your baseline.</p>
+  1165→              <button
+  1166→                onClick={() => setQuickLogOpen(true)}
+  1167→                className="w-full flex items-center justify-center gap-2 py-3 text-sm font-medium text-white rounded-lg bg-red-600 hover:bg-red-500 transition-colors duration-300 shadow-sm tap-feedback"
+  1168→              >
+  1169→                <Zap className="h-4 w-4" />
+  1170→                Log Your Mood, Energy & Focus
+  1171→              </button>
+  1172→              <button
+  1173→                onClick={() => setActiveTab('moodLog')}
+  1174→                className="w-full flex items-center justify-center gap-1.5 py-2 text-xs font-medium text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors duration-300"
+  1175→              >
+  1176→                View Mood Log &amp; Trends
+  1177→                <ArrowRight className="h-3 w-3" />
+  1178→              </button>
+  1179→            </div>
+  1180→          )}
+  1181→        </CardContent>
+  1182→      </Card>
+  1183→      </motion.div>
+  1184→      </WidgetSection>
+  1185→
+  1186→      {/* Next Check-in Card - with countdown and real-time alignment */}
+  1187→      <WidgetSection widgetId="checkin" widgetSettings={widgetSettings}>
+  1188→      <motion.div
+  1189→        initial={{ opacity: 0, y: 8 }}
+  1190→        animate={{ opacity: 1, y: 0 }}
+  1191→        transition={{ duration: 0.7, delay: 0.2, ease: 'easeOut' }}
+  1192→      >
+  1193→      <Card className={`border-neutral-200 dark:border-neutral-800 shadow-sm ${
+  1194→        smartPrompt.urgency === 'critical' ? 'bg-gradient-to-br from-rose-50 to-red-50 dark:from-rose-950/30 dark:to-red-950/20 border-rose-300 dark:border-rose-800' :
+  1195→        smartPrompt.urgency === 'high' ? 'bg-gradient-to-br from-neutral-50 to-rose-50/30 dark:from-neutral-900 dark:to-rose-950/20 border-neutral-300 dark:border-neutral-700' :
+  1196→        'bg-gradient-to-br from-neutral-50 to-neutral-100/50 dark:from-neutral-900 dark:to-neutral-800 border-neutral-200 dark:border-neutral-800'
+  1197→      }`}>
+  1198→        <CardHeader className="pb-3">
+  1199→          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+  1200→            <div className="flex items-center gap-2">
+  1201→              <Sun className="h-5 w-5 text-neutral-500" />
+  1202→              <CardTitle className="text-sm sm:text-base font-medium">{currentExpectedLabel}</CardTitle>
+  1203→              {smartPrompt.urgency === 'critical' && (
+  1204→                <AlertCircle className="h-4 w-4 text-rose-500 shrink-0" />
+  1205→              )}
+  1206→              {smartPrompt.urgency === 'high' && (
+  1207→                <AlertTriangle className="h-4 w-4 text-red-500 shrink-0" />
+  1208→              )}
+  1209→            </div>
+  1210→            <div className="flex items-center gap-2 flex-wrap">
+  1211→              <Badge variant="outline" className={`whitespace-nowrap text-neutral-700 dark:text-neutral-300 border-neutral-300 dark:border-neutral-700 ${
+  1212→                smartPrompt.urgency === 'critical' ? 'bg-rose-100 dark:bg-rose-950/50' : 'bg-neutral-100 dark:bg-neutral-800'
+  1213→              }`}>
+  1214→                {currentExpectedTime}
+  1215→              </Badge>
+  1216→              {/* Countdown badge */}
+  1217→              {windowCountdown !== null && windowCountdown > 0 && (
+  1218→                <Badge className={`text-[10px] font-mono ${
+  1219→                  windowCountdown < 30 * 60 * 1000
+  1220→                    ? 'bg-rose-600 text-white'
+  1221→                    : windowCountdown < 60 * 60 * 1000
+  1222→                      ? 'bg-red-500 text-white'
+  1223→                      : 'bg-red-100 text-red-700 border border-red-300'
+  1224→                }`}>
+  1225→                  <Timer className="h-3 w-3 mr-1" />
+  1226→                  {formatCountdown(windowCountdown)}
+  1227→                </Badge>
+  1228→              )}
+  1229→            </div>
+  1230→          </div>
+  1231→        </CardHeader>
+  1232→        <CardContent className="pt-0">
+  1233→          <p className="text-xs text-neutral-600 dark:text-neutral-400 mb-3 leading-relaxed">{smartPrompt.description}</p>
+  1234→          {isCurrentCompleted ? (
+  1235→            <div className="flex items-center gap-2 text-red-600 text-sm">
+  1236→              <CheckCircle2 className="h-4 w-4" />
+  1237→              <span>Completed for today</span>
+  1238→            </div>
+  1239→          ) : (
+  1240→            <Button
+  1241→              className={`w-full ${
+  1242→                smartPrompt.urgency === 'critical' ? 'bg-rose-600 hover:bg-rose-700' :
+  1243→                'bg-neutral-900 hover:bg-neutral-800'
+  1244→              } text-white transition-colors`}
+  1245→              onClick={() => handleStartCheckIn(currentExpectedType)}
+  1246→            >
+  1247→              Do Check-in
+  1248→              <ArrowRight className="ml-2 h-4 w-4" />
+  1249→            </Button>
+  1250→          )}
+  1251→        </CardContent>
+  1252→      </Card>
+  1253→      </motion.div>
+  1254→
+  1255→      {/* Strict Mode Warning Banner */}
+  1256→      {strictModeWarning && (
+  1257→        <div className="flex items-center gap-2 p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-400 text-xs">
+  1258→          <AlertCircle className="h-4 w-4 shrink-0" />
+  1259→          <span className="leading-relaxed">{strictModeWarning}</span>
+  1260→        </div>
+  1261→      )}
+  1262→
+  1263→      {/* Quick Check-in Buttons */}
+  1264→      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+  1265→        {[
+  1266→          { type: 'morning', label: 'Morning', desc: '5:00 AM' },
+  1267→          { type: 'midday', label: 'Midday', desc: '12:00 PM' },
+  1268→          { type: 'evening', label: 'Evening', desc: '8:30 PM' },
+  1269→          { type: 'friday', label: 'Friday', desc: '4:30 PM' },
+  1270→        ].map((checkin) => (
+  1271→          <motion.button
+  1272→            key={checkin.type}
+  1273→            whileHover={{ scale: 1.01 }}
+  1274→            whileTap={{ scale: 0.98 }}
+  1275→            onClick={() => handleStartCheckIn(checkin.type)}
+  1276→            className={`flex flex-col items-center gap-1.5 p-3 sm:p-4 rounded-xl border transition-colors duration-300 shadow-sm min-h-[84px] ${
+  1277→              isCheckInCompleted(checkin.type)
+  1278→                ? 'bg-neutral-50 dark:bg-neutral-900 border-neutral-200 dark:border-neutral-800 opacity-70'
+  1279→                : 'bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-800 hover:border-red-300 dark:hover:border-red-700 hover:bg-red-50 dark:hover:bg-red-950/20'
+  1280→            }`}
+  1281→          >
+  1282→            <span className="text-xs sm:text-sm font-medium text-neutral-700 dark:text-neutral-300">{checkin.label}</span>
+  1283→            <span className="text-[10px] text-neutral-400 dark:text-neutral-500 whitespace-nowrap">{checkin.desc}</span>
+  1284→            {isCheckInCompleted(checkin.type) && (
+  1285→              <CheckCircle2 className="h-3.5 w-3.5 text-red-500" />
+  1286→            )}
+  1287→          </motion.button>
+  1288→        ))}
+  1289→      </div>
+  1290→      </WidgetSection>
+  1291→
+  1292→      {/* Life Scores */}
+  1293→      <WidgetSection widgetId="scores" widgetSettings={widgetSettings}>
+  1294→      <ScoreCard scores={scores} />
+  1295→      </WidgetSection>
+  1296→
+  1297→      {/* Stats Row */}
+  1298→      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+  1299→        <WidgetSection widgetId="goals" widgetSettings={widgetSettings}>
+  1300→        <Card className="shadow-sm">
+  1301→          <CardContent className="p-4">
+  1302→            <div className="flex items-center justify-between mb-3">
+  1303→              <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400">Goals Progress</span>
+  1304→              <span className="text-xs text-neutral-400 dark:text-neutral-500">{goalStats.completed}/{goalStats.total}</span>
+  1305→            </div>
+  1306→            <Progress value={goalCompletion} className="h-2" />
+  1307→            <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-2">{goalCompletion}% completed</p>
+  1308→          </CardContent>
+  1309→        </Card>
+  1310→        </WidgetSection>
+  1311→
+  1312→        <WidgetSection widgetId="goals" widgetSettings={widgetSettings}>
+  1313→        <Card className="shadow-sm">
+  1314→          <CardContent className="p-4">
+  1315→            <div className="flex items-center justify-between mb-3">
+  1316→              <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400">Tasks Progress</span>
+  1317→              <span className="text-xs text-neutral-400 dark:text-neutral-500">{taskStats.completed}/{taskStats.total}</span>
+  1318→            </div>
+  1319→            <Progress value={taskCompletion} className="h-2" />
+  1320→            <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-2">{taskCompletion}% completed</p>
+  1321→          </CardContent>
+  1322→        </Card>
+  1323→        </WidgetSection>
+  1324→
+  1325→        <WidgetSection widgetId="finances" widgetSettings={widgetSettings}>
+  1326→        <Card className="shadow-sm">
+  1327→          <CardContent className="p-4">
+  1328→            <div className="flex items-center gap-2 mb-3">
+  1329→              <DollarSign className="h-4 w-4 text-red-500" />
+  1330→              <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400">This Week</span>
+  1331→            </div>
+  1332→            <div className="space-y-1.5">
+  1333→              <div className="flex justify-between text-xs">
+  1334→                <span className="text-red-600 dark:text-red-400">Received</span>
+  1335→                <span className="font-medium text-neutral-800 dark:text-neutral-200">₦{Number(totalReceived).toLocaleString()}</span>
+  1336→              </div>
+  1337→              <div className="flex justify-between text-xs">
+  1338→                <span className="text-rose-500 dark:text-rose-400">Spent</span>
+  1339→                <span className="font-medium text-neutral-800 dark:text-neutral-200">₦{Number(totalSpent).toLocaleString()}</span>
+  1340→              </div>
+  1341→              <div className="flex justify-between text-xs pt-2 mt-1 border-t border-neutral-200 dark:border-neutral-700">
+  1342→                <span className="text-neutral-600 dark:text-neutral-400 font-medium">Net</span>
+  1343→                <span className={`font-bold ${Number(net) >= 0 ? 'text-red-600 dark:text-red-400' : 'text-rose-500 dark:text-rose-400'}`}>
+  1344→                  ₦{Number(net).toLocaleString()}
+  1345→                </span>
+  1346→              </div>
+  1347→            </div>
+  1348→          </CardContent>
+  1349→        </Card>
+  1350→        </WidgetSection>
+  1351→      </div>
+  1352→
+  1353→      {/* Active Drift Alerts */}
+  1354→      <WidgetSection widgetId="drift-alerts" widgetSettings={widgetSettings}>
+  1355→      {activeAlerts.length > 0 && (
+  1356→        <Card className="border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/50 shadow-sm">
+  1357→          <CardHeader className="pb-2">
+  1358→            <div className="flex items-center gap-2">
+  1359→              <AlertTriangle className="h-4 w-4 text-red-500" />
+  1360→              <CardTitle className="text-sm text-neutral-700 dark:text-neutral-300">Drift Alerts</CardTitle>
+  1361→            </div>
+  1362→          </CardHeader>
+  1363→          <CardContent className="pt-0">
+  1364→            <div className="space-y-2">
+  1365→              {activeAlerts.map((alert: { id: string; severity: string; message: string; area: string; date: string }) => (
+  1366→                <div key={alert.id} className="flex items-start gap-3 border-l-2 border-red-300 pl-3">
+  1367→                  <Badge variant="destructive" className="text-[10px] shrink-0">{alert.severity}</Badge>
+  1368→                  <div>
+  1369→                    <p className="text-xs text-neutral-700 dark:text-neutral-300 leading-snug">{alert.message}</p>
+  1370→                    <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5">{alert.area} &bull; {alert.date}</p>
+  1371→                  </div>
+  1372→                </div>
+  1373→              ))}
+  1374→            </div>
+  1375→          </CardContent>
+  1376→        </Card>
+  1377→      )}
+  1378→      </WidgetSection>
+  1379→
+  1380→      {/* Recent Check-ins */}
+  1381→      {recentCheckIns.length > 0 && (
+  1382→        <Card className="shadow-sm">
+  1383→          <CardHeader className="pb-2">
+  1384→            <div className="flex items-center justify-between">
+  1385→              <CardTitle className="text-sm">Recent Check-ins</CardTitle>
+  1386→              <Button variant="ghost" size="sm" className="text-xs" onClick={() => setActiveTab('chat')}>
+  1387→                View All <ArrowRight className="ml-1 h-3 w-3" />
+  1388→              </Button>
+  1389→            </div>
+  1390→          </CardHeader>
+  1391→          <CardContent className="pt-0">
+  1392→            <div className="space-y-2">
+  1393→              {recentCheckIns.slice(0, 3).map((checkin: { id: string; type: string; date: string }) => (
+  1394→                <div key={checkin.id} className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
+  1395→                  <CheckCircle2 className="h-4 w-4 text-red-500" />
+  1396→                  <div className="flex-1 min-w-0">
+  1397→                    <p className="text-xs font-medium text-neutral-700 dark:text-neutral-300 capitalize">{checkin.type} Check-in</p>
+  1398→                    <p className="text-[10px] text-neutral-400 dark:text-neutral-500">{checkin.date}</p>
+  1399→                  </div>
+  1400→                  <Badge variant="secondary" className="text-[10px]">Done</Badge>
+  1401→                </div>
+  1402→              ))}
+  1403→            </div>
+  1404→          </CardContent>
+  1405→        </Card>
+  1406→      )}
+  1407→    </div>
+  1408→  )
+  1409→}
+  1410→

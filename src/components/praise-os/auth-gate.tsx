@@ -2,14 +2,14 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Sparkles, ArrowRight, CheckCircle2, ShieldCheck, User } from 'lucide-react'
+import { Sparkles, ArrowRight, CheckCircle2, ShieldCheck, User, Building2 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { useAppStore } from '@/lib/store'
 
 const DEEP_GRADIENT = 'bg-gradient-to-br from-black via-neutral-950 to-red-950/40 ambient-gradient'
 
-type AuthStep = 'boot' | 'checking' | 'setup-name' | 'setup-code' | 'login' | 'success'
+type AuthStep = 'boot' | 'checking' | 'setup-name' | 'setup-business' | 'setup-code' | 'login' | 'success'
 
 // Boot sequence lines — PraiseOS-style
 const BOOT_LINES = [
@@ -21,10 +21,12 @@ const BOOT_LINES = [
 ]
 
 export function AuthGate() {
-  const { setIsAuthenticated, setUserName, setOsName, setIsSetupComplete } = useAppStore()
+  const { setIsAuthenticated, setUserName, setOsName, setIsSetupComplete, setBusinessName, setBusinessDescription } = useAppStore()
   const [step, setStep] = useState<AuthStep>('boot')
   const [code, setCode] = useState('')
   const [name, setName] = useState('')
+  const [businessName, setLocalBusinessName] = useState('')
+  const [businessDesc, setLocalBusinessDesc] = useState('')
   const [osNamePreview, setOsNamePreview] = useState('MyOS')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -74,6 +76,12 @@ export function AuthGate() {
             setOsName(data.osName || `${data.userName}OS`)
             setStoredOsName(data.osName || `${data.userName}OS`)
           }
+          if (data.businessName) {
+            setBusinessName(data.businessName)
+          }
+          if (data.businessDescription) {
+            setBusinessDescription(data.businessDescription)
+          }
           if (data.isSetupComplete) {
             setIsSetupComplete(true)
           }
@@ -100,9 +108,15 @@ export function AuthGate() {
         if (profileData.osName && profileData.osName !== 'MyOS') {
           setStoredOsName(profileData.osName)
         }
+        if (profileData.businessName) {
+          setBusinessName(profileData.businessName)
+        }
+        if (profileData.businessDescription) {
+          setBusinessDescription(profileData.businessDescription)
+        }
 
         if (!authData.isSetUp || !profileData.isSetupComplete) {
-          // Brand new user — show setup flow (name first, then code)
+          // Brand new user — show setup flow (name first, then business, then code)
           setStep('setup-name')
         } else {
           // Returning user — show login with their personalized OS name
@@ -114,7 +128,7 @@ export function AuthGate() {
       }
     }
     checkAuth()
-  }, [step, setIsAuthenticated, setUserName, setOsName, setIsSetupComplete])
+  }, [step, setIsAuthenticated, setUserName, setOsName, setIsSetupComplete, setBusinessName, setBusinessDescription])
 
   // Update OS name preview when name changes
   useEffect(() => {
@@ -150,7 +164,7 @@ export function AuthGate() {
         setOsName(data.osName)
         setStoredOsName(data.osName)
         setIsSetupComplete(true)
-        setStep('setup-code')
+        setStep('setup-business')
       } else {
         setError(data.error || 'Failed to save name')
       }
@@ -160,6 +174,39 @@ export function AuthGate() {
       setLoading(false)
     }
   }, [name, setUserName, setOsName, setIsSetupComplete])
+
+  // Handle business profile submission (first run setup — step 2)
+  const handleBusinessSubmit = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    setLoading(true)
+    setError('')
+
+    try {
+      const res = await fetch('/api/user-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          businessName: businessName.trim(),
+          businessDescription: businessDesc.trim(),
+        }),
+      })
+
+      const data = await res.json()
+
+      if (res.ok && data.success) {
+        setBusinessName(data.businessName || businessName.trim())
+        setBusinessDescription(data.businessDescription || businessDesc.trim())
+        setStep('setup-code')
+      } else {
+        setError(data.error || 'Failed to save business info')
+      }
+    } catch {
+      setError('Connection error. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }, [businessName, businessDesc, setBusinessName, setBusinessDescription])
 
   // Handle access code submission (setup or login)
   const handleCodeSubmit = useCallback(async (e: React.FormEvent) => {
@@ -391,6 +438,154 @@ export function AuthGate() {
                         </>
                       )}
                     </Button>
+                  </motion.div>
+                </form>
+
+                <p className="text-neutral-500 text-[10px] text-center mt-6 tracking-[0.18em] uppercase">
+                  Aligned &bull; Disciplined &bull; Joyful
+                </p>
+              </div>
+            </motion.div>
+          </div>
+        </motion.div>
+      )}
+
+      {step === 'setup-business' && (
+        <motion.div
+          key="setup-business"
+          initial={{ opacity: 0, x: 50 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -50 }}
+          transition={{ duration: 0.5 }}
+          className={`fixed inset-0 z-[100] flex items-center justify-center ${DEEP_GRADIENT} overflow-y-auto overflow-x-hidden`}
+          style={{ height: '100vh', height: '100dvh' }}
+        >
+          {bgDecoration}
+          <div className="relative z-10 w-full min-h-full flex items-center justify-center py-4">
+            <motion.div
+              initial={{ opacity: 0, y: 30, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ duration: 0.6, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
+              className="relative z-10 w-full max-w-md mx-4"
+            >
+              <div className="bg-white/[0.04] backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl shadow-black/50 p-8 md:p-10">
+                {/* Logo */}
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3, duration: 0.5 }}
+                  className="flex flex-col items-center mb-8"
+                >
+                  <motion.div
+                    className="relative flex items-center justify-center w-20 h-20 rounded-3xl bg-red-600/15 border border-red-500/30 mb-5 overflow-hidden animate-color-sweep"
+                    whileHover={{ scale: 1.05, rotate: 5 }}
+                    transition={{ type: 'spring', stiffness: 260, damping: 18 }}
+                  >
+                    <Building2 className="h-10 w-10 text-red-400 relative z-10" />
+                  </motion.div>
+                  <h1 className="text-3xl font-bold text-white tracking-tight">
+                    Your Business
+                  </h1>
+                  <p className="text-neutral-400 text-[11px] mt-1.5 tracking-[0.18em] uppercase">
+                    Tell us about what you do
+                  </p>
+                </motion.div>
+
+                {/* Business Form */}
+                <form onSubmit={handleBusinessSubmit}>
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.6, duration: 0.6 }}
+                    className="space-y-5"
+                  >
+                    <div>
+                      <label
+                        htmlFor="business-name"
+                        className="flex items-center justify-center gap-1.5 text-sm font-medium text-neutral-100 mb-2.5 tracking-wide"
+                      >
+                        <Building2 className="h-3.5 w-3.5 text-red-400" />
+                        What is your business name?
+                      </label>
+                      <Input
+                        id="business-name"
+                        type="text"
+                        placeholder="e.g., Havilah Learning Hub, My Consulting, etc."
+                        value={businessName}
+                        onChange={(e) => {
+                          setLocalBusinessName(e.target.value)
+                          setError('')
+                        }}
+                        className="bg-white/5 border-red-500/30 text-white placeholder:text-neutral-400 text-center text-lg h-14 rounded-lg focus-visible:border-red-500 focus-visible:ring-red-500/40 focus-visible:ring-2 transition-all"
+                        autoFocus
+                        autoComplete="off"
+                      />
+                    </div>
+
+                    <div>
+                      <label
+                        htmlFor="business-desc"
+                        className="flex items-center justify-center gap-1.5 text-sm font-medium text-neutral-100 mb-2.5 tracking-wide"
+                      >
+                        Describe your business
+                      </label>
+                      <textarea
+                        id="business-desc"
+                        placeholder="What does your business do? What products/services do you offer? Who are your clients?"
+                        value={businessDesc}
+                        onChange={(e) => {
+                          setLocalBusinessDesc(e.target.value)
+                          setError('')
+                        }}
+                        rows={3}
+                        className="flex w-full rounded-lg border border-red-500/30 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40 focus-visible:border-red-500 transition-all resize-none"
+                        autoComplete="off"
+                      />
+                    </div>
+
+                    <AnimatePresence>
+                      {error && (
+                        <motion.p
+                          initial={{ opacity: 0, y: -5 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -5 }}
+                          className="text-red-400 text-xs text-center font-medium"
+                        >
+                          {error}
+                        </motion.p>
+                      )}
+                    </AnimatePresence>
+
+                    <Button
+                      type="submit"
+                      disabled={loading}
+                      className="w-full h-14 bg-red-600 hover:bg-red-500 active:bg-red-700 text-white font-semibold text-base rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-red-900/40 hover:shadow-red-700/40"
+                    >
+                      {loading ? (
+                        <motion.div
+                          animate={{ rotate: 360 }}
+                          transition={{ duration: 1.4, repeat: Infinity, ease: 'linear' }}
+                          className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full"
+                        />
+                      ) : (
+                        <>
+                          Continue
+                          <ArrowRight className="h-4 w-4 ml-2" />
+                        </>
+                      )}
+                    </Button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBusinessName('')
+                        setBusinessDescription('')
+                        setStep('setup-code')
+                      }}
+                      className="w-full text-center text-xs text-neutral-500 hover:text-neutral-300 transition-colors py-2"
+                    >
+                      Skip for now — I&apos;ll set this up later
+                    </button>
                   </motion.div>
                 </form>
 

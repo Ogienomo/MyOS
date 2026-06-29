@@ -1,8 +1,16 @@
 'use client'
 
+import { useMemo } from 'react'
 import { LifeAreaPage } from '@/components/praise-os/life-area-page'
-import { AREA_CONFIGS } from './area-configs'
+import { buildAreaConfigs } from './area-configs'
+import { useAppStore } from '@/lib/store'
 
 export function HavilahPage() {
-  return <LifeAreaPage config={AREA_CONFIGS.havilah} />
+  const { businessName, businessDescription } = useAppStore()
+  const configs = useMemo(() => buildAreaConfigs(
+    businessName || undefined,
+    businessDescription || undefined,
+  ), [businessName, businessDescription])
+
+  return <LifeAreaPage config={configs.havilah} />
 }

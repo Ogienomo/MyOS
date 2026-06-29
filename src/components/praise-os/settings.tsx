@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Shield, Loader2, CheckCircle2, AlertCircle, Clock, Bell, Mic, Camera, Lock, Sun, Moon, Monitor, Link2, Unlink, Mail, Calendar, RefreshCw, Key, Download, Wallet, BookOpen, Target, Brain, BarChart3, ClipboardCheck, Database, Plus, Trash2, AlarmClock } from 'lucide-react'
+import { Shield, Loader2, CheckCircle2, AlertCircle, Clock, Bell, Mic, Camera, Lock, Sun, Moon, Monitor, Link2, Unlink, Mail, Calendar, RefreshCw, Key, Download, Wallet, BookOpen, Target, Brain, BarChart3, ClipboardCheck, Database, Plus, Trash2, AlarmClock, User, Building2 } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -173,6 +173,132 @@ function DangerZoneSection() {
         </Button>
       </div>
     </motion.div>
+  )
+}
+
+function ProfileSettings() {
+  const { userName, businessName, businessDescription, setUserName, setBusinessName, setBusinessDescription, osName } = useAppStore()
+  const [localName, setLocalName] = useState(userName)
+  const [localBizName, setLocalBizName] = useState(businessName)
+  const [localBizDesc, setLocalBizDesc] = useState(businessDescription)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      const res = await fetch('/api/user-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: localName,
+          businessName: localBizName,
+          businessDescription: localBizDesc,
+        }),
+      })
+      const data = await res.json()
+      if (res.ok && data.success) {
+        setUserName(data.userName || localName)
+        setBusinessName(data.businessName || localBizName)
+        setBusinessDescription(data.businessDescription || localBizDesc)
+        // Sync to localStorage for dynamic labels
+        if (data.businessName) localStorage.setItem('myos-business-name', data.businessName)
+        else localStorage.removeItem('myos-business-name')
+        if (data.businessDescription) localStorage.setItem('myos-business-description', data.businessDescription)
+        else localStorage.removeItem('myos-business-description')
+        setSaved(true)
+        setTimeout(() => setSaved(false), 2000)
+      }
+    } catch (err) {
+      console.error('Failed to save profile:', err)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Personal Info */}
+      <div>
+        <h3 className="text-sm font-medium text-neutral-800 dark:text-neutral-200 mb-3 flex items-center gap-2">
+          <User className="h-4 w-4 text-red-500" />
+          Personal Info
+        </h3>
+        <div className="space-y-4">
+          <div>
+            <Label className="text-xs text-neutral-600 dark:text-neutral-400 mb-1.5 block">Your Name</Label>
+            <Input
+              value={localName}
+              onChange={(e) => setLocalName(e.target.value)}
+              placeholder="Enter your name"
+              className="text-sm"
+            />
+            <p className="text-[10px] text-neutral-400 mt-1">Your OS is called <strong>{localName ? `${localName}OS` : 'MyOS'}</strong></p>
+          </div>
+        </div>
+      </div>
+
+      {/* Business Profile */}
+      <div className="border-t border-neutral-100 dark:border-neutral-800 pt-6">
+        <h3 className="text-sm font-medium text-neutral-800 dark:text-neutral-200 mb-3 flex items-center gap-2">
+          <Building2 className="h-4 w-4 text-amber-500" />
+          Business Profile
+        </h3>
+        <p className="text-xs text-neutral-500 dark:text-neutral-400 mb-4">
+          Tell us about your business. This will be shown as your Business life area name throughout the app.
+        </p>
+        <div className="space-y-4">
+          <div>
+            <Label className="text-xs text-neutral-600 dark:text-neutral-400 mb-1.5 block">Business Name</Label>
+            <Input
+              value={localBizName}
+              onChange={(e) => setLocalBizName(e.target.value)}
+              placeholder="e.g., My Consulting Firm, Havilah Learning Hub"
+              className="text-sm"
+            />
+            <p className="text-[10px] text-neutral-400 mt-1">
+              This name will appear as the Business area label in your sidebar, dashboard, and life overview.
+            </p>
+          </div>
+          <div>
+            <Label className="text-xs text-neutral-600 dark:text-neutral-400 mb-1.5 block">What is your business about?</Label>
+            <textarea
+              value={localBizDesc}
+              onChange={(e) => setLocalBizDesc(e.target.value)}
+              placeholder="Describe your business — what you do, who your clients are, what products/services you offer..."
+              rows={3}
+              className="flex w-full rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm placeholder:text-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40 focus-visible:border-red-500 transition-all resize-none"
+            />
+            <p className="text-[10px] text-neutral-400 mt-1">
+              Your AI coach will use this to give you more personalized business advice.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Save Button */}
+      <div className="flex items-center gap-3 pt-2">
+        <Button
+          onClick={handleSave}
+          disabled={saving}
+          className="bg-red-600 hover:bg-red-700 text-white text-sm"
+        >
+          {saving ? (
+            <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Saving...</>
+          ) : saved ? (
+            <><CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />Saved!</>
+          ) : (
+            'Save Profile'
+          )}
+        </Button>
+        {localBizName && (
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
+            <Building2 className="h-3.5 w-3.5 text-amber-600" />
+            <span className="text-xs font-medium text-amber-700 dark:text-amber-400">Business area will show as &ldquo;{localBizName}&rdquo;</span>
+          </div>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -614,8 +740,9 @@ export function Settings({ open, onOpenChange }: SettingsProps) {
         )}
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="w-full overflow-x-auto scrollbar-hide flex sm:grid sm:grid-cols-6 h-auto gap-0 p-1 -mx-1 px-1 sm:mx-0 sm:px-0">
+          <TabsList className="w-full overflow-x-auto scrollbar-hide flex sm:grid sm:grid-cols-7 h-auto gap-0 p-1 -mx-1 px-1 sm:mx-0 sm:px-0">
             <TabsTrigger value="checkins" className="text-[10px] sm:text-[11px] px-2 sm:px-2.5 py-2 sm:py-2.5 shrink-0 whitespace-nowrap data-[state=active]:shadow-[inset_0_-2px_0_0_rgba(220,38,38,1)] data-[state=active]:border-b-2 data-[state=active]:border-red-600">Check-ins</TabsTrigger>
+            <TabsTrigger value="profile" className="text-[10px] sm:text-[11px] px-2 sm:px-2.5 py-2 sm:py-2.5 shrink-0 whitespace-nowrap data-[state=active]:shadow-[inset_0_-2px_0_0_rgba(220,38,38,1)] data-[state=active]:border-b-2 data-[state=active]:border-red-600">Profile</TabsTrigger>
             <TabsTrigger value="appearance" className="text-[10px] sm:text-[11px] px-2 sm:px-2.5 py-2 sm:py-2.5 shrink-0 whitespace-nowrap data-[state=active]:shadow-[inset_0_-2px_0_0_rgba(220,38,38,1)] data-[state=active]:border-b-2 data-[state=active]:border-red-600">Appearance</TabsTrigger>
             <TabsTrigger value="features" className="text-[10px] sm:text-[11px] px-2 sm:px-2.5 py-2 sm:py-2.5 shrink-0 whitespace-nowrap data-[state=active]:shadow-[inset_0_-2px_0_0_rgba(220,38,38,1)] data-[state=active]:border-b-2 data-[state=active]:border-red-600">Features</TabsTrigger>
             <TabsTrigger value="integrations" className="text-[10px] sm:text-[11px] px-2 sm:px-2.5 py-2 sm:py-2.5 shrink-0 whitespace-nowrap data-[state=active]:shadow-[inset_0_-2px_0_0_rgba(220,38,38,1)] data-[state=active]:border-b-2 data-[state=active]:border-red-600">Integrations</TabsTrigger>
@@ -624,6 +751,21 @@ export function Settings({ open, onOpenChange }: SettingsProps) {
           </TabsList>
 
           <AnimatePresence mode="wait">
+            {/* Profile Tab */}
+            {activeTab === 'profile' && (
+              <TabsContent value="profile" className="mt-4" forceMount>
+                <motion.div
+                  key="profile-content"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.25 }}
+                  className="space-y-6"
+                >
+                  <ProfileSettings />
+                </motion.div>
+              </TabsContent>
+            )}
+
             {/* Check-in Windows Tab */}
             {activeTab === 'checkins' && (
               <TabsContent value="checkins" className="mt-4 space-y-4" forceMount>

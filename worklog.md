@@ -81,3 +81,39 @@ Stage Summary:
 - Returning user flow: Boot animation → Login (with personalized OS name) → Dashboard
 - Database cleaned: ready for first real user setup
 - Deployed to: https://myos-life-v2.vercel.app
+
+---
+Task ID: business-personalization
+Agent: Main Agent
+Task: Replace "HAVILAH" with dynamic "Business" area that shows user's business name throughout the app, add onboarding step and settings for business profile
+
+Work Log:
+- Added `businessName` and `businessDescription` fields to Zustand store
+- Updated user-profile API to save/retrieve business name and description via Settings table
+- Added new `setup-business` step in auth-gate onboarding flow (between name and code steps)
+- Made havilah area label dynamic in area-configs.ts (shows business name if set, "Business" otherwise)
+- Updated lib/area-config.ts with dynamic getAreaConfig/getBusinessLabel functions
+- Updated sidebar to show dynamic business name from store
+- Updated life-tab.tsx with dynamic business area label
+- Updated about.tsx with dynamic business area label
+- Updated onboarding-tour.tsx to say "Business" instead of "Havilah"
+- Updated havilah-page.tsx to use buildAreaConfigs with dynamic business name/description
+- Updated chat.tsx labels, placeholders, and smart tags from "Havilah" to "Business"
+- Updated calendar.tsx descriptions
+- Updated weekly-review.tsx area labels
+- Updated insights.tsx area labels
+- Updated finances.tsx placeholder
+- Updated dashboard.tsx icon import (Gem → Building2)
+- Updated AI prompts in lib/ai.ts (HAVILAH RULE → BUSINESS RULE, etc.)
+- Updated API routes: chat, checkin, monthly-summary, auto-generate, correlations, export, google/sync-calendar, seed
+- Added ProfileSettings component in Settings dialog with business name/description editing
+- Added Profile tab to Settings dialog
+- Synced business name/description to localStorage for cross-component access
+- Synced business data in page.tsx via useEffect
+
+Stage Summary:
+- "Havilah" replaced with "Business" as the default label across the entire app
+- Users can now set their own business name during onboarding or in Settings > Profile
+- The business name appears dynamically in sidebar, life areas, dashboard, AI coach prompts, etc.
+- Internal DB key remains `havilah` for backward compatibility (no migration needed)
+- Build passes successfully with no errors

@@ -7,16 +7,19 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import {
-  Heart, Activity, Briefcase, Gem, Wallet, Users, Sprout,
+  Heart, Activity, Briefcase, Building2, Wallet, Users, Sprout,
   ArrowRight, TrendingUp, TrendingDown, Minus, Loader2, Flame, Sparkles,
 } from 'lucide-react'
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts'
+import { getAreaConfig } from '@/lib/area-config'
+
+const businessConfig = getAreaConfig('havilah')
 
 const AREAS = [
   { key: 'faith', label: 'Faith', icon: Heart, ideal: 9, desc: 'Prayer, scripture, devotion' },
   { key: 'health', label: 'Health', icon: Activity, ideal: 8, desc: 'Sleep, food, gym, energy' },
   { key: 'career', label: 'Career', icon: Briefcase, ideal: 8, desc: 'Applications, skills, CV' },
-  { key: 'havilah', label: 'Havilah', icon: Gem, ideal: 8, desc: 'Revenue, clients, systems' },
+  { key: 'havilah', label: businessConfig.label, icon: Building2, ideal: 8, desc: businessConfig.label === 'Business' ? 'Revenue, clients, systems' : businessConfig.label },
   { key: 'finances', label: 'Finances', icon: Wallet, ideal: 8, desc: 'Savings, budgeting, giving' },
   { key: 'relationships', label: 'Relationships', icon: Users, ideal: 8, desc: 'Family, friends, church' },
   { key: 'personalGrowth', label: 'Growth', icon: Sprout, ideal: 8, desc: 'Learning, reading, discipline' },

@@ -6,7 +6,7 @@ const AREA_NAMES: Record<string, string> = {
   faith: 'Faith & Spiritual Life',
   health: 'Health & Wellness',
   career: 'Career & Professional Growth',
-  havilah: 'Havilah & Entrepreneurship',
+  havilah: 'Business & Entrepreneurship',
   finances: 'Finances & Stewardship',
   relationships: 'Relationships & Community',
   personalGrowth: 'Personal Growth & Learning',

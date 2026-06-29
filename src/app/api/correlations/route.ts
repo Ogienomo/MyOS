@@ -54,7 +54,7 @@ export async function GET() {
       faith: 'Faith',
       health: 'Health',
       career: 'Career',
-      havilah: 'Havilah',
+      havilah: 'Business',
       finances: 'Finances',
       relationships: 'Relationships',
       personalGrowth: 'Growth',
